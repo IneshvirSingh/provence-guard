@@ -1,21 +1,17 @@
 {
   "name": "provenance-guard",
-  "image": "mcr.microsoft.com/devcontainers/python:1-3.12-bookworm",
+  "image": "mcr.microsoft.com/devcontainers/universal:2",
   "hostRequirements": {
     "cpus": 2
   },
-  "features": {
-    "ghcr.io/devcontainers/features/node:1": {},
-    "ghcr.io/devcontainers/features/docker-in-docker:2": {},
-    "ghcr.io/anthropics/devcontainer-features/claude-code:1.0": {}
-  },
-  "postCreateCommand": "pip install --user uv",
+  "postCreateCommand": "pip install --user uv && npm install -g @anthropic-ai/claude-code",
   "forwardPorts": [
     8000
   ],
   "customizations": {
     "vscode": {
       "extensions": [
+        "anthropic.claude-code",
         "ms-python.python",
         "charliermarsh.ruff"
       ]
