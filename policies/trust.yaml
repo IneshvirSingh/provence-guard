@@ -1,0 +1,47 @@
+# Trust configuration for tool outputs. Justifications live in docs/THREAT_MODEL.md §3.
+# Schema (validated by provguard.core in Phase 2):
+#   version: int
+#   default: trusted | untrusted            # for tools not listed
+#   tools:
+#     <tool_name>:
+#       trusted: bool                        # label for the whole output
+#       fields:                              # optional per-field overrides (dotted paths inside list items)
+#         <field>: trusted | untrusted
+#       echoes_args: bool                    # output inherits the sources of the call's arguments
+#       sensitive: bool                      # output must not flow into outgoing free-text args (policy-level)
+version: 1
+default: untrusted
+tools:
+  read_file:
+    trusted: false
+    echoes_args: true
+  get_most_recent_transactions:
+    trusted: true
+    fields:
+      subject: untrusted
+  get_scheduled_transactions:
+    trusted: true
+    fields:
+      subject: untrusted
+  get_balance:
+    trusted: true
+  get_iban:
+    trusted: true
+  get_user_info:
+    trusted: true
+    sensitive: true
+  send_money:
+    trusted: true
+    echoes_args: true
+  schedule_transaction:
+    trusted: true
+    echoes_args: true
+  update_scheduled_transaction:
+    trusted: true
+    echoes_args: true
+  update_password:
+    trusted: true
+    echoes_args: true
+  update_user_info:
+    trusted: true
+    echoes_args: true

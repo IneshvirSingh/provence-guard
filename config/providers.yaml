@@ -1,0 +1,32 @@
+# Every LLM provider the client may talk to. The client MUST refuse any provider not listed here
+# or with requires_payment_method != false. Limits are copied from each provider's console by the
+# human (see HUMAN_TODO.md); null means "not yet copied", and the quota guard refuses to run.
+providers:
+  groq:
+    base_url: https://api.groq.com/openai/v1
+    api_key_env: GROQ_API_KEY
+    requires_payment_method: false   # human-verified: [PENDING]
+    data_used_for_training: null     # verify terms before live demo (Phase 6)
+    models:
+      llama-3.3-70b-versatile:
+        tool_calling: true
+        parallel_tool_calls: true
+        json_mode: true
+        limits: { rpm: null, rpd: null, tpm: null, tpd: null }
+      llama-3.1-8b-instant:
+        tool_calling: true
+        parallel_tool_calls: true
+        json_mode: true
+        limits: { rpm: null, rpd: null, tpm: null, tpd: null }
+      openai/gpt-oss-120b:
+        tool_calling: true
+        parallel_tool_calls: false
+        json_mode: true
+        limits: { rpm: null, rpd: null, tpm: null, tpd: null }
+  gemini:
+    base_url: https://generativelanguage.googleapis.com/v1beta/openai
+    api_key_env: GEMINI_API_KEY
+    requires_payment_method: false   # human-verified: [PENDING]
+    data_used_for_training: null
+    models: {}                       # fill after console check
+# github_models: retired by GitHub on 2026-07-30 (docs.github.com/en/github-models). Removed from the plan.

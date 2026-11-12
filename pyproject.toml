@@ -1,0 +1,85 @@
+[project]
+name = "provguard"
+version = "0.0.1"
+description = "Provenance Guard: a provenance-tracking policy layer that blocks indirect prompt injection in tool-using LLM agents."
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+license = "MIT"
+authors = [{ name = "Ineshvir Singh Khurana" }]
+dependencies = [
+    "pydantic==2.14.3",
+    "pyyaml==6.0.3",
+]
+
+[project.optional-dependencies]
+# AgentDojo benchmark integration (Phase 1+). Heavy: pulls openai, anthropic, cohere, google-genai, langchain.
+bench = [
+    "agentdojo==0.1.35",
+    "openai==3.49.0",
+]
+# Detector training (Phase 3). Never installed in the codespace; used on Colab/Kaggle.
+ml = [
+    "torch>=2.2.1",
+    "transformers>=4.41.2",
+]
+
+[dependency-groups]
+dev = [
+    "ruff==0.17.5",
+    "mypy==2.4.1",
+    "pytest==9.2.0",
+    "pytest-cov==7.1.0",
+    "hypothesis==6.170.15",
+    "pre-commit==4.7.0",
+    "types-pyyaml==6.0.12.20261111",
+]
+
+[build-system]
+requires = ["hatchling==1.33.0"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/provguard"]
+
+[tool.uv]
+package = true
+
+[tool.ruff]
+line-length = 110
+target-version = "py312"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "RUF", "ANN", "S"]
+ignore = [
+    "ANN401",  # Any is sometimes the honest type at boundaries
+    "S101",    # asserts are fine (tests, invariants)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["ANN", "S105", "S106"]
+
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_unreachable = true
+files = ["src"]
+plugins = ["pydantic.mypy"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q --strict-markers"
+markers = [
+    "integration: needs docker services (redis/postgres/qdrant)",
+]
+
+[tool.coverage.run]
+source = ["provguard.core"]
+branch = true
+
+[tool.coverage.report]
+fail_under = 85
+show_missing = true

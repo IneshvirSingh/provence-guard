@@ -218,3 +218,9 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Provenance Guard
+runs/            # raw AgentDojo trace logs (results/*.json is committed instead)
+mlruns/
+*.onnx
+.hypothesis/
