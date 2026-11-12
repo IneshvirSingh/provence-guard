@@ -1,0 +1,76 @@
+# Policies for the AgentDojo banking tools, derived from tool docstrings/signatures only
+# (docs/recon/agentdojo.md §6) and the threat model §4. Rationale: docs/design/core.md §4.
+# Allow entries: USER | SYSTEM | PLANNER | tool:<name>. tool:<name> matches only that tool's *trusted* fields.
+version: 1
+unlisted_tool: DENY
+tools:
+  # read-only tools: unguarded (still logged)
+  get_iban: { guarded: false }
+  get_balance: { guarded: false }
+  get_most_recent_transactions: { guarded: false }
+  get_scheduled_transactions: { guarded: false }
+  read_file: { guarded: false }
+  get_user_info: { guarded: false }
+
+  send_money:
+    guarded: true
+    default: { allow: [USER, PLANNER], else: CONFIRM }
+    args:
+      recipient:
+        allow: [USER, tool:get_most_recent_transactions, tool:get_scheduled_transactions]
+        else: CONFIRM
+        constraints: { pattern: "^[A-Z]{2}[0-9A-Z]{4,32}$" }   # ":param recipient: IBAN of the recipient"
+        on_violation: DENY
+      amount:
+        allow: [USER, PLANNER, tool:get_most_recent_transactions, tool:get_scheduled_transactions, tool:get_balance]
+        else: CONFIRM
+        constraints: { minimum: 0, exclusive: true }
+        on_violation: DENY
+      subject: { allow: [USER, PLANNER], else: CONFIRM }
+      date: { allow: [USER, PLANNER, tool:get_most_recent_transactions, tool:get_scheduled_transactions], else: CONFIRM }
+
+  schedule_transaction:
+    guarded: true
+    default: { allow: [USER, PLANNER], else: CONFIRM }
+    args:
+      recipient:
+        allow: [USER, tool:get_most_recent_transactions, tool:get_scheduled_transactions]
+        else: CONFIRM
+        constraints: { pattern: "^[A-Z]{2}[0-9A-Z]{4,32}$" }
+        on_violation: DENY
+      amount:
+        allow: [USER, PLANNER, tool:get_most_recent_transactions, tool:get_scheduled_transactions, tool:get_balance]
+        else: CONFIRM
+        constraints: { minimum: 0, exclusive: true }
+        on_violation: DENY
+      subject: { allow: [USER, PLANNER], else: CONFIRM }
+      date: { allow: [USER, PLANNER, tool:get_most_recent_transactions, tool:get_scheduled_transactions], else: CONFIRM }
+      recurring: { allow: [USER, PLANNER], else: CONFIRM }
+
+  update_scheduled_transaction:
+    guarded: true
+    default: { allow: [USER, PLANNER], else: CONFIRM }
+    args:
+      id: { allow: [USER, tool:get_scheduled_transactions], else: CONFIRM }
+      recipient:
+        allow: [USER, tool:get_most_recent_transactions, tool:get_scheduled_transactions]
+        else: CONFIRM
+        constraints: { pattern: "^[A-Z]{2}[0-9A-Z]{4,32}$" }
+        on_violation: DENY
+      amount:
+        allow: [USER, PLANNER, tool:get_most_recent_transactions, tool:get_scheduled_transactions, tool:get_balance]
+        else: CONFIRM
+        constraints: { minimum: 0, exclusive: true }
+        on_violation: DENY
+      subject: { allow: [USER, PLANNER], else: CONFIRM }
+      date: { allow: [USER, PLANNER, tool:get_most_recent_transactions, tool:get_scheduled_transactions], else: CONFIRM }
+      recurring: { allow: [USER, PLANNER], else: CONFIRM }
+
+  update_password:
+    guarded: true
+    args:
+      password: { allow: [USER], else: DENY }
+
+  update_user_info:
+    guarded: true
+    default: { allow: [USER], else: CONFIRM }

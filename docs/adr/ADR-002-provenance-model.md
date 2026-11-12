@@ -51,3 +51,16 @@ us write defensible policies for the banking tools and prove a property about th
 - Utility cost is structural, not a bug: tasks whose guarded arguments must come from untrusted text will be
   CONFIRMed. Strict and permissive modes bound the cost; the confirmation rate quantifies it.
 - Explanations are free: the reason object *is* the provenance.
+
+## Amendment 1 (2026-11-12, with the core implementation)
+
+Two refinements, both argued in `docs/design/core.md`:
+
+1. **`PLANNER` source.** Planner literals that do not occur verbatim in the user's prompt are labelled
+   `PLANNER` (trusted, since the planner never sees untrusted data) instead of `USER`, so policies can refuse
+   invented recipients, ids, passwords and profile values while still allowing invented dates, memos and computed
+   amounts. Grounding rule in `provenance.ground_literal`.
+2. **Selection taint.** Decision 7 ("no control-flow taint for deterministic steps") is narrowed: a deterministic
+   `filter` adds the inspected field's sources (over all examined items) to every kept item, because *which*
+   record survives is attacker-influenced when the field is untrusted. Loop bounds still add no taint.
+   Implemented in `provenance.filter_items`, property-tested in `tests/property/test_provenance_props.py`.

@@ -13,7 +13,7 @@ Scaffold (uv, ruff, mypy, pytest, pre-commit with gitleaks, Makefile, docker-com
 `config/providers.yaml`. **Δ** self-hosted Langfuse dropped from compose (ADR-001). **Δ** GitHub Models retired
 (2026-07-30); second model family = Gemini free tier or Colab-served open model.
 
-## Phase 2a (pulled forward): core design + implementation, no LLM calls
+## Phase 2a (pulled forward): core design + implementation, no LLM calls — DONE pending mini-GATE 2a review
 - `docs/design/core.md`: plan DSL (`CallTool`, `Extract`, `Select`, bounded `ForEach`, `Respond`), provenance
   semantics (per-field labels, union, echo rules), policy language and schema, per-tool policies for the five
   guarded banking tools from tool semantics only, property-test list, known failure modes and limitations.

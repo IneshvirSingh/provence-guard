@@ -33,3 +33,28 @@ Broke / surprises:
 
 Recommend next: human reviews GATE 0 (THREAT_MODEL, trust.yaml, ADR-002 especially the per-field trust and
 "no control-flow taint" decisions), fills `HUMAN_TODO.md` items 1–2. Next session writes `docs/design/core.md`.
+
+## Session 2 — 2026-11-12 (Claude Fable 5.1)
+
+**Phase 2a (design + core): complete, awaiting mini-GATE 2a review.**
+
+Built:
+- `docs/design/core.md`: plan DSL, provenance semantics (incl. two ADR-002 refinements: `PLANNER` source and
+  selection taint), policy language, banking policies from tool semantics, predicted strict-mode ceiling (≈8/16,
+  a prediction, not a result), property-test list, failure modes.
+- `src/provguard/core/`: `provenance.py`, `trust.py`, `plan.py`, `extraction.py`, `policy.py`, `runner.py`
+  (≈660 statements). `policies/banking.yaml`.
+- Tests: 89 unit tests (`tests/unit/`) incl. end-to-end plan runs on a fake bank (refund auto-allowed; bill
+  payment CONFIRM → strict denies / permissive pays; DENY stops; extraction fails closed; foreach; grounding),
+  15 hypothesis property tests (`tests/property/`) incl. C1 at the policy level and end-to-end through the runner.
+
+Measured: coverage 99% on `provguard.core` (gate 85%). No LLM calls, no benchmark numbers.
+
+Broke / surprises:
+- Hypothesis health check on oversized random trees → inputs shrunk.
+- Numeric grounding missed negative/exponent literals → regex fixed, property test caught it.
+- Push-down semantics make a record's trusted source appear alongside the field's untrusted one in explanations
+  (harmless: untrusted dominates; documented in `tests/unit/test_trust.py`).
+
+Recommend next: review `docs/design/core.md` §3–§4 (policy language and the banking allow-lists) and the two
+ADR-002 refinements. Then Phase 1 harness (quota guard, runner, Groq adapter) or Phase 2b agent, per `PLAN.md`.
