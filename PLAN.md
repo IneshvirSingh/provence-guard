@@ -22,7 +22,7 @@ Scaffold (uv, ruff, mypy, pytest, pre-commit with gitleaks, Makefile, docker-com
   `tests/unit` + `tests/property` (hypothesis). Coverage ≥ 85%.
 - Acceptance: property tests prove C1 (no untrusted auto-allow) for arbitrary compositions. → mini-GATE 2a.
 
-## Phase 1: Baselines and evaluation harness
+## Phase 1: Baselines and evaluation harness — harness code DONE; runs blocked on keys/limits (HUMAN_TODO 1–2)
 Quota guard (Redis, limits from `config/providers.yaml`), resumable async runner with sha256 cache and cassette
 mode, AgentDojo driver via Python API with Groq-backed `OpenAILLM` (verify `developer` role; verify
 `important_instructions` model-name constraint; ADR-003 on run scheduling: Codespace chunks vs GitHub Actions),

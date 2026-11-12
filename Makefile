@@ -33,14 +33,22 @@ up: ## Start local Redis, Postgres, Qdrant and wait for health
 down: ## Stop local services (keeps volumes)
 > docker compose down
 
-bench-smoke: ## [Phase 1] ~10-case smoke benchmark from recorded responses
-> @echo "not implemented until Phase 1" && exit 1
+SUITE ?= banking
+DEFENSE ?= none
+ATTACK ?= important_instructions
+MODEL ?= groq/llama-3.3-70b-versatile
+REDIS_URL ?= redis://localhost:6379/0
+CASSETTE ?= results/cassettes/smoke.json
 
-bench: ## [Phase 1] make bench SUITE=banking DEFENSE=none ATTACK=important_instructions
-> @echo "not implemented until Phase 1 (SUITE=$(SUITE) DEFENSE=$(DEFENSE) ATTACK=$(ATTACK))" && exit 1
+bench-smoke: ## Smoke subset from recorded responses (no key, no network); needs $(CASSETTE) [PENDING]
+> @test -f $(CASSETTE) || { echo "no cassette at $(CASSETTE): record one with MODE=record (needs a key)"; exit 1; }
+> $(RUN) python -m provguard.bench run --smoke --mode replay --cassette $(CASSETTE) --model $(MODEL) --attack $(ATTACK) --defense $(DEFENSE)
 
-report: ## [Phase 1] Generate docs/RESULTS.md from results/*.json
-> @echo "not implemented until Phase 1" && exit 1
+bench: ## make bench SUITE= DEFENSE= ATTACK= MODEL= (live, quota-guarded via $(REDIS_URL))
+> $(RUN) python -m provguard.bench run --suite $(SUITE) --defense $(DEFENSE) $(if $(filter none,$(ATTACK)),,--attack $(ATTACK)) --model $(MODEL) --redis-url $(REDIS_URL)
+
+report: ## Generate docs/RESULTS.md from results/*.json
+> $(RUN) python -m provguard.bench report
 
 train-detector: ## [Phase 3]
 > @echo "not implemented until Phase 3" && exit 1

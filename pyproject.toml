@@ -12,10 +12,15 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# AgentDojo benchmark integration (Phase 1+). Heavy: pulls openai, anthropic, cohere, google-genai, langchain.
-bench = [
-    "agentdojo==0.1.35",
+# LLM access: OpenAI-compatible client, Redis-backed quota guard and cache (Phase 1+).
+llm = [
     "openai==3.49.0",
+    "redis==8.1.0",
+]
+# AgentDojo benchmark integration (Phase 1+). Heavy: pulls anthropic, cohere, google-genai, langchain.
+bench = [
+    "provguard[llm]",
+    "agentdojo==0.1.35",
 ]
 # Detector training (Phase 3). Never installed in the codespace; used on Colab/Kaggle.
 ml = [
@@ -32,6 +37,7 @@ dev = [
     "hypothesis==6.170.15",
     "pre-commit==4.7.0",
     "types-pyyaml==6.0.12.20261111",
+    "fakeredis==2.40.0",
 ]
 
 [build-system]
@@ -69,15 +75,25 @@ warn_unreachable = true
 files = ["src"]
 plugins = ["pydantic.mypy"]
 
+[[tool.mypy.overrides]]
+module = ["agentdojo.*", "openai", "openai.*", "redis", "redis.*"]  # pre-commit mypy env lacks the extras
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+# agentdojo ships no py.typed, so its classes are Any; subclassing them is the whole point of this package.
+module = ["provguard.bench.*"]
+disallow_subclassing_any = false
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q --strict-markers"
+filterwarnings = ["ignore::SyntaxWarning:google.genai.*"]
 markers = [
     "integration: needs docker services (redis/postgres/qdrant)",
 ]
 
 [tool.coverage.run]
-source = ["provguard.core"]
+source = ["provguard.core", "provguard.llm", "provguard.bench"]
 branch = true
 
 [tool.coverage.report]

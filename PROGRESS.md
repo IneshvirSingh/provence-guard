@@ -58,3 +58,36 @@ Broke / surprises:
 
 Recommend next: review `docs/design/core.md` §3–§4 (policy language and the banking allow-lists) and the two
 ADR-002 refinements. Then Phase 1 harness (quota guard, runner, Groq adapter) or Phase 2b agent, per `PLAN.md`.
+
+## Session 3 — 2026-11-12 (Claude Fable 5.1)
+
+**Phase 1 harness: code complete; no benchmark run yet (no API key, no console limits). GATE 1 cannot be
+reached until the human completes `HUMAN_TODO.md` items 1–2.**
+
+Built:
+- `src/provguard/llm/`: `providers.py` (₹0 registry; refuses unlisted / unverified providers), `quota.py`
+  (Redis or memory fixed-window guard for RPM/RPD/TPM/TPD; waits, or raises `QuotaExhausted` at a daily cap),
+  `client.py` (sync OpenAI-compatible client: sha256 cache, `live|record|replay` cassettes, jittered retries,
+  usage summary).
+- `src/provguard/bench/`: `llm_element.py` (`ProvguardLLM`, `ToolFilter`), `pipelines.py` (none + 4 shipped
+  defenses mirrored from `AgentPipeline.from_config`), `attacks.py` (named `important_instructions`),
+  `runner.py` (`run_arm` → `results/<arm>.json` with git SHA, versions, usage, Wilson CIs), `stats.py`,
+  `report.py` (`make report` → `docs/RESULTS.md`), CLI `python -m provguard.bench`.
+- `docs/adr/ADR-003-benchmark-harness.md`, `docs/learn/phase-1.md`, Makefile `bench`, `bench-smoke`, `report`.
+- `pyproject.toml`: extras `llm` (openai, redis) and `bench` (agentdojo 0.1.35); dev adds fakeredis.
+
+Verified (no network): scripted-transport tests drive real AgentDojo banking pipelines end to end
+(`user_task_1` solved; `tool_filter` prunes tools; rerun from `runs/` makes zero calls; attack arm writes a
+results file with the prose model name). `make check` green; coverage gate still ≥ 85% across core/llm/bench.
+
+Measured: nothing. `results/` has no arm files; `docs/RESULTS.md` is not generated until one exists.
+
+Broke / surprises:
+- Groq rejects `messages[].name` (HTTP 400) and AgentDojo's `OpenAILLM` sets it → own LLM element (ADR-003).
+- agentdojo ships no `py.typed`; mypy strict needed `disallow_subclassing_any = false` for `provguard.bench.*`.
+- The smoke cassette (`results/cassettes/smoke.json`) cannot be recorded without a key → `[PENDING]`.
+
+Recommend next: human does `HUMAN_TODO.md` 1–2, then `make up && make bench ATTACK=none` for the benign
+baseline on 1–2 user tasks first (check tokens/requests per run), then record the smoke cassette, then the
+full arms. Alternatively, start Phase 2b (planner/extractor prompts + AgentDojo adapter around
+`provguard.core.PlanRunner`), which also needs a key to test for real.
