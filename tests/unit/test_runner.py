@@ -352,3 +352,29 @@ def test_invalid_plan_is_rejected_before_running():
     plan = Plan.model_validate({"steps": [{"op": "call", "out": "x", "tool": "nope", "args": {}}]})
     with pytest.raises(PlanError):
         make_runner(FakeBank()).run(plan)
+
+
+def test_sys_today_is_system_labelled_and_fails_closed_when_absent():
+    from provguard.core import SYSTEM, Plan, PolicySet, ToolSpec, TrustConfig
+    from provguard.core.runner import PlanRunner
+
+    seen = {}
+    plan = Plan.model_validate(
+        {"steps": [{"op": "call", "out": "r", "tool": "stamp", "args": {"date": {"sys": "today"}}}]}
+    )
+    kw = dict(
+        trust=TrustConfig(version=1, default="untrusted", tools={}),
+        policy=PolicySet.model_validate(
+            {"version": 1, "tools": {"stamp": {"args": {"date": {"allow": ["SYSTEM"], "else": "DENY"}}}}}
+        ),
+        tools={"stamp": ToolSpec(name="stamp", args={"date": True})},
+        call_tool=lambda name, args: seen.update(args) or "ok",
+        extractor=lambda *a: None,
+    )
+    res = PlanRunner(**kw, system_values={"today": "2030-01-02"}).run(plan)
+    assert res.status == "ok" and seen == {"date": "2030-01-02"}
+    assert res.records[0].decision.reasons[0].sources == [str(SYSTEM)]
+    res = PlanRunner(**kw).run(plan)
+    assert (
+        res.status == "error" and "not available" in res.records[0].error and seen == {"date": "2030-01-02"}
+    )

@@ -70,3 +70,20 @@ def test_reduce_with_path_selects_the_field_first():
     res = runner.run(plan)
     assert res.status == "error" and "numeric path" in (res.records[-1].error or "")
     assert res.records[1].executed  # the path form worked before the bad step
+
+
+def test_respond_template_with_attribute_access_fails_closed():
+    from provguard.core import PolicySet, TrustConfig
+    from provguard.core.runner import PlanRunner
+
+    plan = Plan.model_validate(
+        {"steps": [{"op": "call", "out": "tx", "tool": "ledger"}, {"op": "respond", "template": "{tx.id}"}]}
+    )
+    res = PlanRunner(
+        trust=TrustConfig(version=1, default="untrusted", tools={}),
+        policy=PolicySet.model_validate({"version": 1, "tools": {"ledger": {"guarded": False}}}),
+        tools={"ledger": ToolSpec(name="ledger")},
+        call_tool=lambda name, args: [{"id": 1}],
+        extractor=lambda *a: None,
+    ).run(plan)
+    assert res.status == "error" and "bad respond template" in res.records[-1].error

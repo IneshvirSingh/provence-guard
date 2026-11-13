@@ -28,7 +28,14 @@ class Ref(BaseModel):
     path: str = ""
 
 
-Value = Lit | Ref
+class Sys(BaseModel):
+    """A value supplied by the runtime, not by the planner or the data (labelled SYSTEM). Only ``today``."""
+
+    model_config = ConfigDict(extra="forbid")
+    sys: Literal["today"]
+
+
+Value = Lit | Ref | Sys
 
 
 class FieldSpec(BaseModel):

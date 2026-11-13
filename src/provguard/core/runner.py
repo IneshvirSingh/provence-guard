@@ -27,12 +27,14 @@ from provguard.core.plan import (
     Respond,
     Select,
     Step,
+    Sys,
     ToolSpec,
     Value,
 )
 from provguard.core.policy import Decision, PolicySet, decide
 from provguard.core.provenance import (
     PLANNER,
+    SYSTEM,
     Labeled,
     ProvenanceError,
     compute,
@@ -99,7 +101,9 @@ class PlanRunner:
         confirm: ConfirmHandler = confirm_strict,
         prompt: str = "",
         extract_retries: int = 1,
+        system_values: Mapping[str, Any] | None = None,
     ) -> None:
+        self.system_values = dict(system_values or {})
         self.trust = trust
         self.policy = policy
         self.tools = tools
@@ -215,7 +219,7 @@ class PlanRunner:
     def _respond(self, step: Respond, bindings: dict[str, Labeled]) -> str:
         try:
             return step.template.format_map({k: v.plain() for k, v in bindings.items()})
-        except (KeyError, IndexError, ValueError) as e:
+        except (KeyError, IndexError, ValueError, AttributeError, TypeError) as e:
             raise PlanRuntimeError(f"bad respond template: {e}") from e
 
     # -- values ------------------------------------------------------------------------------------
@@ -223,6 +227,10 @@ class PlanRunner:
     def _value(self, v: Value, bindings: dict[str, Labeled]) -> Labeled:
         if isinstance(v, Lit):
             return scalar(v.lit, ground_literal(v.lit, self.prompt) if self.prompt else PLANNER)
+        if isinstance(v, Sys):
+            if v.sys not in self.system_values:
+                raise PlanRuntimeError(f"system value {v.sys!r} is not available")
+            return scalar(self.system_values[v.sys], SYSTEM)
         ref: Ref = v
         return select(bindings[ref.ref], ref.path)
 

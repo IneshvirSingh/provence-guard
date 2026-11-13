@@ -197,3 +197,27 @@ def test_reduce_count_carries_all_sources_of_arbitrary_lists(lst):
 
     out = reduce_items(lst, "count")
     assert out.value == len(lst.value) and out.sources == lst.all_sources()
+
+
+@given(records(), source_sets.filter(lambda ss: any(not x.trusted for x in ss)), st.data())
+@settings(max_examples=200, deadline=None)
+def test_match_derived_from_untrusted_text_taints_every_selected_item(recs, text_sources, data):
+    """Extractor-based matching (ADR-004 amendment 3): an identifier extracted from untrusted text, used as a
+    filter value, makes every kept item (and anything selected or reduced from it) untrusted. Same rule as select:
+    no step launders the sources of what decided the selection."""
+    from provguard.core.provenance import reduce_items
+
+    if not recs.value:
+        return
+    key = data.draw(st.sampled_from(sorted(recs.value[0].value)))
+    target = data.draw(st.sampled_from(list(recs.value))).value[key].value
+    free_text = Labeled("some subject line", text_sources)  # what the extractor read
+    ident = select(extracted({"id": target}, [free_text, recs], scalar("find it", PLANNER)), "id")
+    assert text_sources <= ident.all_sources() and recs.all_sources() <= ident.all_sources()
+    kept = filter_items(recs, key, "eq", ident)
+    assert len(kept.value) >= 1
+    for item in kept.value:
+        assert text_sources <= item.sources and not item.is_trusted()
+        for field in item.value:
+            assert not select(kept, f"[0].{field}").is_trusted()
+    assert not reduce_items(select(kept, key), "count").is_trusted()

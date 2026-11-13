@@ -27,7 +27,7 @@ tools:
         constraints: { minimum: 0, exclusive: true }
         on_violation: DENY
       subject: { allow: [USER, PLANNER], else: CONFIRM }
-      date: { allow: [USER, PLANNER, tool:get_most_recent_transactions, tool:get_scheduled_transactions], else: CONFIRM }
+      date: { allow: [USER, SYSTEM, PLANNER, tool:get_most_recent_transactions, tool:get_scheduled_transactions], else: CONFIRM }
 
   schedule_transaction:
     guarded: true
@@ -44,7 +44,7 @@ tools:
         constraints: { minimum: 0, exclusive: true }
         on_violation: DENY
       subject: { allow: [USER, PLANNER], else: CONFIRM }
-      date: { allow: [USER, PLANNER, tool:get_most_recent_transactions, tool:get_scheduled_transactions], else: CONFIRM }
+      date: { allow: [USER, SYSTEM, PLANNER, tool:get_most_recent_transactions, tool:get_scheduled_transactions], else: CONFIRM }
       recurring: { allow: [USER, PLANNER], else: CONFIRM }
 
   update_scheduled_transaction:
@@ -63,7 +63,7 @@ tools:
         constraints: { minimum: 0, exclusive: true }
         on_violation: DENY
       subject: { allow: [USER, PLANNER], else: CONFIRM }
-      date: { allow: [USER, PLANNER, tool:get_most_recent_transactions, tool:get_scheduled_transactions], else: CONFIRM }
+      date: { allow: [USER, SYSTEM, PLANNER, tool:get_most_recent_transactions, tool:get_scheduled_transactions], else: CONFIRM }
       recurring: { allow: [USER, PLANNER], else: CONFIRM }
 
   update_password:
