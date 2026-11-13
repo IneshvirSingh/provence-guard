@@ -60,3 +60,29 @@ Measured on the benign smoke subset (5 tasks, strict, gpt-oss-120b): 0/5 without
 Groq can answer JSON mode with HTTP 400 "Failed to generate JSON". Planner counts it as a failed attempt;
 extractor returns `None` (core then retries once and stops). Other errors still propagate.
 
+## Amendment 3 (2026-11-13): human decisions on OD7 (items 1–3; item 4 deferred)
+1. **Today's date is a SYSTEM value, read like a production clock.** New plan value `{"sys": "today"}`
+   (`core.plan.Sys`), resolved by `PlanRunner(system_values=...)` and labelled `SYSTEM`. The adapter's
+   `today_from_env` uses the environment's own clock when it has one (`env.calendar.current_day`, present in
+   AgentDojo suites with a calendar) and otherwise the process clock. Verified in agentdojo==0.1.35: the banking
+   environment defines **no** current date (no field, no tool, nothing in the system message), so banking runs
+   use the real date. No date is hardcoded; the ground-truth dates in the user tasks were not used. The value
+   never enters the planner prompt, so the cache key and cassettes do not change from day to day. Banking date
+   arguments allow `SYSTEM`. The source used is stored in `GuardTrace.today_source`.
+2. **Prompt rule 4 reworded**: ask only when a value exists nowhere (request, readable tool results, system
+   values); a short subject/label may be a planner literal (already allowed by policy as `PLANNER`).
+3. **Free-text matching goes through the extractor, not `filter contains`**: extract the record's identifier
+   from the list, then `filter` on it by reference. No new operator: `extracted` labels the identifier with the
+   union of everything the extractor read (including untrusted subjects), and `filter_items` adds the value's
+   sources to every kept item. So anything selected by an untrusted description is untrusted, the same rule as
+   `select`. Property test: `test_match_derived_from_untrusted_text_taints_every_selected_item`.
+   Normalised `contains` was rejected: it still fails on "New Year's gift" vs "New year gift".
+4. **`reduce`/`select` path strings are unlabelled.** A path is plan text written by the planner, and the
+   planner only ever sees trusted inputs (the user prompt, tool schemas, system text). It names *where* to look,
+   not *what* was found; the data it reaches keeps its own labels and pushed-down ancestor labels, which is
+   what the reduce property test asserts. Labelling paths `PLANNER` would add a trusted source to every value
+   and change no verdict.
+5. **Traceability**: `UsageSummary` now also records `cached_*_tokens`, the original live usage stored with
+   each cached response, so a results file written by a cached rerun still shows what the calls cost. Results
+   also record `guard.requests_reaching_guarded_call`.
+

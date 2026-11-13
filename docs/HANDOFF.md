@@ -1,6 +1,6 @@
 # HANDOFF.md — for the next model/session
 
-Last updated: 2026-11-13, end of session 5 (Claude Fable 5.2). Fable is available until 2026-11-17; Claude Opus
+Last updated: 2026-11-13, end of session 6 (Claude Fable 5.2). Fable is available until 2026-11-17; Claude Opus
 5.5 continues afterwards. Read `CLAUDE.md`, `PLAN.md`, `PROGRESS.md`, `HUMAN_TODO.md` first.
 
 ## State
@@ -15,18 +15,21 @@ Last updated: 2026-11-13, end of session 5 (Claude Fable 5.2). Fable is availabl
   **TPD is the binding constraint**: ≈3 days per attacked baseline arm (see PROGRESS session 4 projection).
 
 ## Exact next task
-**Blocked on human decision OD7** (strict benign utility 1/5 on the smoke subset; see PROGRESS session 5 and
-`docs/FAILURES.md` F3–F6). Do not spend quota on full guard arms before it is answered.
-After OD7:
-1. Apply the chosen planner changes, rerun the same smoke subset for both modes
-   (`--smoke --force-rerun --mode record --cassette results/cassettes/smoke.json`), update the 3-arm table.
-2. Human-requested step 4, not started: ADR + GitHub Actions workflow that runs one quota-sized chunk per day,
-   resumable, cache persisted between runs (results branch vs actions/cache: pick and justify). Schedule stays
-   disabled until the human approves.
-3. Then full arms, cheapest first (`make up`; benign none/strict/permissive ≈34k tokens each; attacked ≈3 days
-   each for baselines), `make report` after each. Second family: `MODEL=groq/qwen/qwen3.8-27b`.
-Note: `make up` (Redis) is needed after every Codespace restart; the Redis cache does not survive it, the
-cassette and `runs/` do.
+State after session 6: OD7 items 1–3 are in (ADR-004 amendment 3). Full benign banking arm measured:
+none 7/16, provguard_strict 7/16 (PROGRESS session 6; every strict miss is F-numbered in `docs/FAILURES.md`).
+Waiting for the human's read of that result. Likely next, in order:
+1. Generic planner/extractor fixes from FAILURES: optional extraction fields (F8, four tasks), one worked
+   example of "extract id then filter" in the fictional domain (F5), `select`+`reduce path` clarity (F9).
+   Rerun the full benign strict arm; planner calls for unchanged prompts are cache hits only if Redis survived.
+2. Rerun the smoke subset for both modes (the committed smoke files predate amendment 3), then
+   provguard_permissive benign full arm.
+3. Human-requested step 4, not started: ADR + scheduled GitHub Actions workflow (one quota chunk per day,
+   resumable, cache persisted; schedule disabled until approved).
+4. Attacked arms (≈3 days of TPD per baseline arm). Baseline is non-deterministic at temperature 0: decide on
+   repeats (k=3?) before spending the quota.
+5. Phase 8 upstream candidates: `is_task_injectable` bug; banking user_task_5 utility passes with no action.
+Operational: `make up` after every Codespace restart (Redis cache and quota counters are lost; cassette and
+`runs/` survive). Use `--force-rerun` when usage and guard statistics must cover every case.
 
 ## Open decisions (not yet made)
 - OD1 resolved: planner literals are `USER` if verbatim in the prompt, else `PLANNER` (ADR-002 amendment 1).
