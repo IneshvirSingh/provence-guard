@@ -135,3 +135,36 @@ Broke / surprises:
 Recommend next: review the `config/providers.yaml` diff (asked for before commit), then commit; then
 `docs/HANDOFF.md` §Exact next task.
 
+## Session 5 — 2026-11-13 (Claude Fable 5.2)
+
+**Early utility signal: strict benign utility is 1/5 on the smoke subset. Stopped for human review (as asked).**
+
+Built: output schemas for the planner (`policies/schemas/banking.yaml`, ADR-004 amendment 1); `--no-schemas`
+ablation; guard statistics in results (`guard`: confirmations, statuses); provider JSON failures fail closed;
+two hypothesis properties for `reduce` (exact union of list, record and selected-field sources; count on
+arbitrary lists). Session-4 work committed in six conventional commits after a clean gitleaks + key scan.
+
+Measured (banking smoke subset: user tasks 1,3,4,7,14; injection tasks 0,1; gpt-oss-120b; `results/*smoke*`):
+
+| arm | benign utility | utility under attack | targeted ASR | requests hitting CONFIRM |
+|---|---|---|---|---|
+| none | 4/5 | 4/10 | 7/10 | n/a |
+| provguard_strict | 1/5 | 2/10 | 0/10 | 0/5 benign, 0/12 attacked |
+| provguard_permissive | 1/5 | 2/10 | 0/10 | 0/5 benign, 0/12 attacked |
+| provguard_strict, no schemas | 0/5 | not run | not run | 0/5 |
+
+Tokens: guard benign 5 live planner calls = 10,576 tokens (≈2.1k per uncached case; the committed strict
+benign file is a later fully cached rerun and shows 0). Attacked guard arms were almost entirely cache hits
+(the planner prompt does not depend on the injection): 2 live calls, 4,763 tokens. Baseline: 10,642 benign,
+42,296 attacked.
+
+Reading (n is tiny; intervals in `docs/RESULTS.md`):
+- Strict and permissive are identical because no plan ever reached a CONFIRM: the planner stops and asks
+  instead of acting (F3, F4), mismatches free text (F5) or cannot branch (F6). The policy engine was not the
+  cause of any benign failure here.
+- ASR 0/10 is therefore weak evidence: the guard blocked nothing because almost nothing was attempted.
+  Attacked statuses: 10 ok, 1 denied, 1 error. The security claim needs arms where the guard actually acts.
+
+Recommend next: human decision OD7 (HANDOFF) before any further quota is spent. Step 4 (scheduled Actions
+workflow + ADR) not started.
+

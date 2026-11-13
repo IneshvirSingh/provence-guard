@@ -45,3 +45,18 @@ measured failures decide whether it is worth it (master prompt §5.8 fallback re
 - Benign utility on banking will be structurally limited (design §4 predicted ≈8/16 in strict mode); any
   number is `[PENDING]` until `results/` has the arm.
 - Each case costs ≈1 planner call (≈1.6k prompt tokens for banking) plus one extractor call per `extract`.
+
+## Amendment 1 (2026-11-13): the planner sees output schemas, never data
+Human decision after F2: the planner is blind to *data*, not to *schemas*. `policies/schemas/<suite>.yaml`
+gives every tool a typed `returns` line and shared result types (for banking: `Transaction` fields, date format,
+and the ledger convention that the owner's side is `"me"` or the own IBAN). Rules: written from tool source and
+return types only; one entry per tool (a test asserts the set equals the suite's tools); no task text, no
+injection content; applied to every request. `ToolSpec.returns` carries it; `render_tools` prints it;
+`--no-schemas` (pipeline name `provguard-<mode>-noschema-…`) keeps the ablation runnable.
+Measured on the benign smoke subset (5 tasks, strict, gpt-oss-120b): 0/5 without schemas → 1/5 with
+(`results/*smoke-noschema.json`, `*smoke.json`); `user_task_1` False → True.
+
+## Amendment 2 (2026-11-13): provider JSON failures fail closed
+Groq can answer JSON mode with HTTP 400 "Failed to generate JSON". Planner counts it as a failed attempt;
+extractor returns `None` (core then retries once and stops). Other errors still propagate.
+
