@@ -44,3 +44,27 @@ pipeline `local` to satisfy the attack (changes the attack text to "Local model"
 - The first real run is blocked only on `HUMAN_TODO.md` items 1–2 (keys and console limits).
 - Baseline numbers are comparable to the paper's defenses but not to its models.
 - `results/cassettes/smoke.json` is `[PENDING]` until recorded; `make bench-smoke` fails clearly until then.
+
+## Addendum 1 (2026-11-13): first live calls against Groq
+Verified against `https://api.groq.com/openai/v1` with the human's free-tier key (see `config/providers.yaml`):
+- **Model IDs are never written from memory.** `llama-3.3-70b-versatile` and `llama-3.1-8b-instant` were
+  retired for free accounts on 2026-08-16 and are absent from `/models`. `ProviderRegistry.check_models` now
+  GETs `/models` and fails if a configured ID is missing; the CLI runs it before every live/record run
+  (`make check-models` runs it alone). Primary agent model: `openai/gpt-oss-120b`; second family:
+  `qwen/qwen3.8-27b` (Gemini disabled). `meta-llama/llama-prompt-guard-2-{86m,22m}` are listed as
+  `kind: classifier` for the Phase 3 off-the-shelf detector baseline.
+- **Payload shape accepted** by gpt-oss-120b and qwen3.8-27b: `role: system`, `seed`, `tools` +
+  `tool_choice`, `reasoning_effort`, `parallel_tool_calls: false`. gpt-oss returns a `reasoning` field in the
+  assistant message and `completion_tokens_details.reasoning_tokens`; reasoning tokens count against TPM/TPD,
+  hence `request_defaults: {reasoning_effort: low}` in `providers.yaml`, merged into every request and into the
+  cache key.
+- **Groq's edge returns HTTP 403 to urllib's default User-Agent**; `/models` is fetched with `User-Agent:
+  provguard/0.1`. The openai SDK sets its own UA and was unaffected.
+- **`x-ratelimit-*` headers expose only requests/day and tokens/minute**; RPM and TPD come from the console.
+  `limits_source` in `providers.yaml` records which numbers were header-confirmed.
+- Prompt Guard models answer a chat completion with a single probability string (e.g. `0.9995…` for an
+  obvious injection) and report `total_tokens: 0`; the quota guard's token estimate is therefore an overcount.
+- Harness fixes from the first run: `record` mode now also writes cache hits to the cassette (otherwise a
+  Redis-warm case never reaches the tape), and partial/smoke runs write `results/<arm>__<label>.json` so they
+  never overwrite a full arm's file.
+

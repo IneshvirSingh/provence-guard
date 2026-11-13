@@ -1,7 +1,7 @@
 # Learn: Phase 1 — baselines and the evaluation harness (code done, runs pending keys)
 
 ## What was built
-- `provguard.llm.providers`: the ₹0 rule as code. `ProviderRegistry.resolve("groq/llama-3.3-70b-versatile")`
+- `provguard.llm.providers`: the ₹0 rule as code. `ProviderRegistry.resolve("groq/openai/gpt-oss-120b")`
   refuses any provider missing from `config/providers.yaml` or without `requires_payment_method: false`.
 - `provguard.llm.quota`: `QuotaGuard` with RPM/RPD/TPM/TPD fixed windows in Redis (`RedisStore`) or memory
   (`MemoryStore` for tests). Waits for the next minute; raises `QuotaExhausted` on a daily cap.

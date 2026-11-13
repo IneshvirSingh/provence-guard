@@ -91,3 +91,47 @@ Recommend next: human does `HUMAN_TODO.md` 1–2, then `make up && make bench AT
 baseline on 1–2 user tasks first (check tokens/requests per run), then record the smoke cassette, then the
 full arms. Alternatively, start Phase 2b (planner/extractor prompts + AgentDojo adapter around
 `provguard.core.PlanRunner`), which also needs a key to test for real.
+
+## Session 4 — 2026-11-13 (Claude Fable 5.1)
+
+**Keys arrived. First live calls. Phase 1 smoke recorded. Phase 2b agent code complete; first live guard run.**
+
+Built:
+- `config/providers.yaml` rewritten from the live Groq `/models` list (Llama models retired for free accounts
+  2026-08-16): `openai/gpt-oss-120b` primary (`reasoning_effort: low`, no parallel tool calls),
+  `qwen/qwen3.8-27b` second family, `llama-prompt-guard-2-{86m,22m}` as `kind: classifier`; Gemini disabled.
+  Limits from the console; RPD/TPM confirmed from `x-ratelimit-*` headers (`limits_source`).
+- `ProviderRegistry.check_models` + `make check-models`: the configured IDs are compared with the live `/models`
+  before every live/record run. Groq returns 403 to urllib's default User-Agent (fixed with `provguard/0.1`).
+- `LLMClient`: `request_defaults` merged into every payload (and the cache key); `response_format`; `record` mode
+  now also writes cache hits to the cassette. Partial/smoke runs write `results/<arm>__<label>.json`.
+- Core: `reduce` op (`sum|count|min|max`, optional `path`) — design §1 updated.
+- `src/provguard/agent/` (ADR-004): planner, extractor, `ProvenanceGuard` AgentDojo element,
+  `build_guard_pipeline`; `provguard_strict` / `provguard_permissive` in `DEFENSES` and the CLI.
+- Docs: ADR-003 addendum 1, ADR-004, `docs/learn/phase-2b.md`, `docs/FAILURES.md`, `docs/RESULTS.md`
+  (generated), COSTS/HUMAN_TODO updated.
+
+Measured (all from `results/*.json`, gpt-oss-120b, banking, git 4c7a6da+working tree):
+- Benign smoke (5 user tasks, defense none): utility 4/5; 10 live + 2 cached calls; 10,642 tokens.
+- Attacked smoke (5 user tasks × 2 injection tasks, `important_instructions`): utility under attack 4/10,
+  targeted ASR 7/10; 29 live + 10 cached calls; 42,296 tokens. Both injection tasks solvable as user tasks.
+- Cassette `results/cassettes/smoke.json`: 41 recorded responses; `make bench-smoke` now works offline.
+- Guard, `user_task_1`, strict, live: 1 planner call, 1,766 tokens, utility False (F1 then F2 in FAILURES.md).
+
+Projection (arithmetic from the smoke numbers; not a result):
+- Per benign run ≈2.4 calls, ≈2.1k tokens → full benign arm (16 tasks) ≈38 calls, ≈34k tokens: fits one day.
+- Per attacked run ≈3.3 calls, ≈3.5k billed tokens → full attacked arm (144 cases + 9 injection-as-user) ≈500
+  calls, ≈540k tokens → **≈3 days of the 200k TPD per attacked baseline arm**; RPD (1000) is not binding; TPM
+  (8000) forces ≥70 min wall time per arm. Guard arms: ≈1 planner call (≈1.7k) + ≤1 extractor call per case →
+  ≈2 days per attacked arm. GATE 1 (4 baselines) + GATE 2 (2 guard modes), attacked + benign ≈ 15–17 days of
+  gpt-oss-120b quota if run serially; qwen has its own per-model TPD and can run the second family in parallel.
+
+Broke / surprises:
+- gpt-oss-120b returns a `reasoning` field and counts reasoning tokens in `completion_tokens` (quota!).
+- Prompt Guard reports `total_tokens: 0`; our estimate overcounts (harmless).
+- First planner plan reduced records instead of amounts (F1); second run included an incoming transfer (F2).
+- Hypothesis found `compute("div", 1, 2.2e-311)` → inf → `ProvenanceError`; the property test now accepts it.
+
+Recommend next: review the `config/providers.yaml` diff (asked for before commit), then commit; then
+`docs/HANDOFF.md` §Exact next task.
+

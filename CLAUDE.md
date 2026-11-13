@@ -20,7 +20,8 @@ the last unfinished task. The full brief is `docs/Master_Prompt.md`; this file c
    (`default_suites/*/injection_tasks.py` GOAL/security bodies); policies come from tool semantics + user-task
    specs. Slack suite is held out until Phase 9. Detector is never trained on AgentDojo strings.
 4. ₹0: only providers listed in `config/providers.yaml` with `requires_payment_method: false`; quota guard before
-   the first LLM call. Never suggest anything needing a card.
+   the first LLM call. Never suggest anything needing a card. **Never write model IDs from memory**: `make
+   check-models` compares the config with the provider's live `/models` (it also runs before every live run).
 5. Secrets never committed; gitleaks in pre-commit and CI; OIDC in CI/CD.
 6. GATEs: run `make check`, update `PROGRESS.md`, summarize built/measured/broken/next, **stop and wait**.
 7. Human-only actions go in `HUMAN_TODO.md` with click-by-click steps.
@@ -37,6 +38,7 @@ the last unfinished task. The full brief is `docs/Master_Prompt.md`; this file c
 - `provguard.core` depends only on pydantic + pyyaml. No LLM calls, no I/O beyond loading YAML.
 - Commit messages: conventional (`feat(core): ...`, `docs(adr): ...`, `chore: ...`).
 - AgentDojo result semantics: `security=True` means the attack **succeeded** (ASR = mean). Don't invert it.
+- Groq quirks: rejects `messages[].name`; 403 to urllib's default User-Agent; headers expose only RPD/TPM.
 - Known AgentDojo quirks: `important_instructions` needs `pipeline.name` to contain a `MODEL_NAMES` key;
   `OpenAILLM` sends system prompts as `role="developer"`; `TaskSuite.check()` injectability test is broken.
 

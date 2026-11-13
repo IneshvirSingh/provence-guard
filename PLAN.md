@@ -22,7 +22,7 @@ Scaffold (uv, ruff, mypy, pytest, pre-commit with gitleaks, Makefile, docker-com
   `tests/unit` + `tests/property` (hypothesis). Coverage ≥ 85%.
 - Acceptance: property tests prove C1 (no untrusted auto-allow) for arbitrary compositions. → mini-GATE 2a.
 
-## Phase 1: Baselines and evaluation harness — harness code DONE; runs blocked on keys/limits (HUMAN_TODO 1–2)
+## Phase 1: Baselines and evaluation harness — harness DONE; smoke recorded 2026-11-13; full arms pending (quota-chunked)
 Quota guard (Redis, limits from `config/providers.yaml`), resumable async runner with sha256 cache and cassette
 mode, AgentDojo driver via Python API with Groq-backed `OpenAILLM` (verify `developer` role; verify
 `important_instructions` model-name constraint; ADR-003 on run scheduling: Codespace chunks vs GitHub Actions),
@@ -30,7 +30,7 @@ banking runs: no defense + every applicable shipped defense under `important_ins
 CIs; `make report`; ~10-case smoke subset with recorded responses. **Δ** `transformers_pi_detector` baseline needs
 torch: run it on Colab/Actions or defer to Phase 3 (decide in ADR-003). → GATE 1.
 
-## Phase 2b: The defense end-to-end
+## Phase 2b: The defense end-to-end — agent code DONE 2026-11-13 (ADR-004); first live run on 1 task; arms pending
 Planner + quarantined extractor + policy engine + confirmation handlers (strict/permissive/interactive) inside
 one AgentDojo pipeline element; full banking runs both modes; confirmation rate; overhead; `docs/FAILURES.md`;
 fallback (argument-provenance matching) if utility collapses. → GATE 2.
