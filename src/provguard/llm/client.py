@@ -151,9 +151,11 @@ class LLMClient:
         seed: int = 0,
         max_tokens: int | None = None,
         tool_choice: str | None = None,
+        response_format: Mapping[str, Any] | None = None,
     ) -> ChatResult:
         payload: dict[str, Any] = {
             "model": self.model.model,
+            **self.model.request_defaults,  # e.g. reasoning_effort / parallel_tool_calls from providers.yaml
             "messages": [dict(m) for m in messages],
             "temperature": temperature,
             "seed": seed,
@@ -163,23 +165,30 @@ class LLMClient:
             payload["tool_choice"] = tool_choice or "auto"
         if max_tokens is not None:
             payload["max_tokens"] = max_tokens
+        if response_format is not None:
+            payload["response_format"] = dict(response_format)
         key = cache_key(self.model.id, payload)
 
         hit = self.cache.get(key)
         raw: dict[str, Any] | None = json.loads(hit) if hit is not None else self._tape.get(key)
         if raw is not None:
             self.summary.cache_hits += 1
+            self._record(key, raw)  # a cache hit still belongs in the cassette
             return self._result(raw, key, cached=True)
         if self.mode == "replay":
             raise CassetteMiss(f"no recorded response for request {key[:12]} (model {self.model.id})")
 
         raw = self._send(payload)
         self.cache.set(key, json.dumps(raw))
-        if self.mode == "record" and self.cassette is not None:
-            self._tape[key] = raw
-            self.cassette.parent.mkdir(parents=True, exist_ok=True)
-            self.cassette.write_text(json.dumps(self._tape, indent=1, sort_keys=True))
+        self._record(key, raw)
         return self._result(raw, key, cached=False)
+
+    def _record(self, key: str, raw: dict[str, Any]) -> None:
+        if self.mode != "record" or self.cassette is None or key in self._tape:
+            return
+        self._tape[key] = raw
+        self.cassette.parent.mkdir(parents=True, exist_ok=True)
+        self.cassette.write_text(json.dumps(self._tape, indent=1, sort_keys=True))
 
     # ------------------------------------------------------------------------------------------
 

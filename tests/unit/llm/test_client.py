@@ -117,3 +117,29 @@ def test_helpers():
     m = MemoryCache()
     m.set("k", "v")
     assert m.get("k") == "v" and m.get("z") is None
+
+
+def test_record_mode_writes_cache_hits_into_the_cassette(tmp_path):
+    from provguard.llm.client import LLMClient, MemoryCache
+    from provguard.llm.providers import Limits, ModelRef
+
+    ref = ModelRef(provider="p", model="m", base_url="https://x", api_key_env="X", limits=Limits())
+    cache = MemoryCache()
+    calls = 0
+
+    def transport(payload):
+        nonlocal calls
+        calls += 1
+        return {
+            "choices": [{"message": {"role": "assistant", "content": "hi"}}],
+            "usage": {"total_tokens": 3},
+        }
+
+    live = LLMClient(ref, transport=transport, cache=cache)
+    live.chat([{"role": "user", "content": "x"}])  # warms the shared cache, no cassette
+    tape = tmp_path / "t.json"
+    rec = LLMClient(ref, transport=transport, cache=cache, mode="record", cassette=tape)
+    r = rec.chat([{"role": "user", "content": "x"}])
+    assert r.cached and calls == 1 and tape.exists()
+    replay = LLMClient(ref, transport=transport, mode="replay", cassette=tape)
+    assert replay.chat([{"role": "user", "content": "x"}]).message["content"] == "hi" and calls == 1

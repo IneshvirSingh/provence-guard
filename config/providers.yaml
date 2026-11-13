@@ -1,32 +1,62 @@
-# Every LLM provider the client may talk to. The client MUST refuse any provider not listed here
-# or with requires_payment_method != false. Limits are copied from each provider's console by the
-# human (see HUMAN_TODO.md); null means "not yet copied", and the quota guard refuses to run.
+# Every LLM provider the client may talk to. The client MUST refuse any provider not listed here, any
+# provider with enabled: false, and any provider whose requires_payment_method is not exactly false.
+#
+# Model IDs are NOT written from memory: `python -m provguard.bench check-models` (also run automatically
+# before any live call) GETs <base_url>/models and fails if a configured ID is missing. Last verified against
+# Groq /models on 2026-11-13 (llama-3.3-70b-versatile and llama-3.1-8b-instant were retired for free
+# accounts on 2026-08-16 and are gone from the endpoint).
+#
+# limits: copied by the human from the provider console. `limits_source` records what the first live call's
+# x-ratelimit-* headers confirmed; Groq's headers expose only requests/day and tokens/minute.
 providers:
   groq:
+    enabled: true
     base_url: https://api.groq.com/openai/v1
     api_key_env: GROQ_API_KEY
-    requires_payment_method: false   # human-verified: [PENDING]
-    data_used_for_training: null     # verify terms before live demo (Phase 6)
+    requires_payment_method: false   # human-verified 2026-11-13 (Inesh): no card requested anywhere in the console
+    data_used_for_training: null     # verify terms before live demo (Phase 6) -> docs/COSTS.md
     models:
-      llama-3.3-70b-versatile:
+      openai/gpt-oss-120b:           # PRIMARY agent model (planner / extractor / baselines)
+        kind: agent
         tool_calling: true
-        parallel_tool_calls: true
+        parallel_tool_calls: false   # not supported on this model; also sent explicitly below
         json_mode: true
-        limits: { rpm: null, rpd: null, tpm: null, tpd: null }
-      llama-3.1-8b-instant:
-        tool_calling: true
-        parallel_tool_calls: true
-        json_mode: true
-        limits: { rpm: null, rpd: null, tpm: null, tpd: null }
-      openai/gpt-oss-120b:
+        context_window: 131072
+        request_defaults:            # merged into every request (part of the cache key)
+          reasoning_effort: low      # saves quota: reasoning tokens count against TPM/TPD
+          parallel_tool_calls: false
+        limits: { rpm: 30, rpd: 1000, tpm: 8000, tpd: 200000 }
+        limits_source: "console 2026-11-13; rpd=1000, tpm=8000 confirmed by x-ratelimit headers 2026-11-13"
+      qwen/qwen3.8-27b:              # second model family (replaces Gemini)
+        kind: agent
         tool_calling: true
         parallel_tool_calls: false
         json_mode: true
-        limits: { rpm: null, rpd: null, tpm: null, tpd: null }
+        context_window: 131072
+        request_defaults: {}
+        limits: { rpm: 30, rpd: 1000, tpm: 8000, tpd: 200000 }
+        limits_source: "console 2026-11-13 (rpm, tpd); rpd=1000, tpm=8000 confirmed by x-ratelimit headers 2026-11-13"
+      meta-llama/llama-prompt-guard-2-86m:   # Phase 3 off-the-shelf detector baseline
+        kind: classifier             # chat/completions returns a single injection probability as text
+        tool_calling: false
+        parallel_tool_calls: false
+        json_mode: false
+        context_window: 512
+        limits: { rpm: 30, rpd: 14400, tpm: 15000, tpd: 500000 }
+        limits_source: "console 2026-11-13; rpd=14400, tpm=15000 confirmed by x-ratelimit headers 2026-11-13"
+      meta-llama/llama-prompt-guard-2-22m:
+        kind: classifier
+        tool_calling: false
+        parallel_tool_calls: false
+        json_mode: false
+        context_window: 512
+        limits: { rpm: 30, rpd: 14400, tpm: 15000, tpd: 500000 }
+        limits_source: "console 2026-11-13; rpd=14400, tpm=15000 confirmed by x-ratelimit headers 2026-11-13"
   gemini:
+    enabled: false                   # disabled 2026-11-13: qwen/qwen3.8-27b on Groq is the second family
     base_url: https://generativelanguage.googleapis.com/v1beta/openai
     api_key_env: GEMINI_API_KEY
-    requires_payment_method: false   # human-verified: [PENDING]
+    requires_payment_method: false   # human-verified 2026-11-13 (Inesh): no card requested
     data_used_for_training: null
-    models: {}                       # fill after console check
+    models: {}
 # github_models: retired by GitHub on 2026-07-30 (docs.github.com/en/github-models). Removed from the plan.
