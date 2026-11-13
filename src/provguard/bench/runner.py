@@ -42,11 +42,16 @@ class ArmSpec(BaseModel):
     injection_tasks: list[str] = Field(default_factory=list)
     seed: int = 0
     mode: str = "live"
+    label: str | None = None  # None = the full suite; "smoke" / "partial" runs never overwrite the full file
 
     @property
     def arm_id(self) -> str:
         model = self.model.replace("/", "_")
         return f"{self.suite}__{self.defense}__{self.attack or 'none'}__{model}"
+
+    @property
+    def file_stem(self) -> str:
+        return f"{self.arm_id}__{self.label}" if self.label else self.arm_id
 
 
 class Case(BaseModel):
@@ -154,5 +159,5 @@ def run_arm(
         metrics=compute_metrics(results, attacked=spec.attack is not None),
     )
     results_dir.mkdir(parents=True, exist_ok=True)
-    (results_dir / f"{spec.arm_id}.json").write_text(arm.model_dump_json(indent=2))
+    (results_dir / f"{spec.file_stem}.json").write_text(arm.model_dump_json(indent=2))
     return arm

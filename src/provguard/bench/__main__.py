@@ -18,7 +18,10 @@ SMOKE_INJECTION_TASKS = ["injection_task_0", "injection_task_1"]
 
 
 def _client(model: str, mode: str, cassette: str | None, redis_url: str | None) -> LLMClient:
-    ref = ProviderRegistry.load().resolve(model)
+    registry = ProviderRegistry.load()
+    ref = registry.resolve(model)
+    if mode != "replay":  # startup check: the configured ID must exist on the provider's live /models
+        registry.check_models(ref.provider)
     cache = None
     quota = None
     if redis_url:
@@ -47,14 +50,30 @@ def main(argv: list[str] | None = None) -> int:
     run.add_argument("--injection-task", action="append", default=[])
     run.add_argument("--smoke", action="store_true", help="the fixed ~10-case smoke subset")
     run.add_argument("--force-rerun", action="store_true")
+    run.add_argument("--label", default=None, help="results file suffix; default smoke/partial/none")
+    run.add_argument("--logdir", default="runs", help="AgentDojo per-case logs (resume source)")
+    run.add_argument("--results-dir", default="results")
     sub.add_parser("report", help="write docs/RESULTS.md from results/*.json")
+    check = sub.add_parser(
+        "check-models", help="verify every enabled provider's model IDs against its /models"
+    )
+    check.add_argument("--provider", default=None, help="default: all enabled providers")
     ns = parser.parse_args(argv)
 
     if ns.cmd == "report":
         print(f"wrote {write_report()}")
         return 0
+    if ns.cmd == "check-models":
+        registry = ProviderRegistry.load()
+        names = [ns.provider] if ns.provider else [n for n, p in registry.providers.items() if p.enabled]
+        for name in names:
+            live = registry.check_models(name)
+            n = len(registry.providers[name].models)
+            print(f"{name}: all {n} configured model(s) present ({len(live)} live)")
+        return 0
     user_tasks = SMOKE_USER_TASKS if ns.smoke else ns.user_task
     injection_tasks = SMOKE_INJECTION_TASKS if ns.smoke else ns.injection_task
+    label = ns.label or ("smoke" if ns.smoke else "partial" if (user_tasks or injection_tasks) else None)
     spec = ArmSpec(
         suite=ns.suite,
         attack=ns.attack,
@@ -63,10 +82,18 @@ def main(argv: list[str] | None = None) -> int:
         mode=ns.mode,
         user_tasks=user_tasks,
         injection_tasks=injection_tasks,
+        label=label,
     )
     client = _client(ns.model, ns.mode, ns.cassette, ns.redis_url)
-    pipeline = build_pipeline(client, ns.defense)
-    arm = run_arm(spec, pipeline, client, force_rerun=ns.force_rerun)
+    pipeline = build_pipeline(client, ns.defense, suite=ns.suite)
+    arm = run_arm(
+        spec,
+        pipeline,
+        client,
+        logdir=Path(ns.logdir),
+        results_dir=Path(ns.results_dir),
+        force_rerun=ns.force_rerun,
+    )
     print(arm.metrics.model_dump_json(indent=2))
     print(arm.usage)
     return 0

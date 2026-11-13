@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 from functools import partial
+from typing import Literal
 
 from agentdojo.agent_pipeline.agent_pipeline import TOOL_FILTER_PROMPT, AgentPipeline, load_system_message
 from agentdojo.agent_pipeline.basic_elements import InitQuery, SystemMessage
@@ -22,6 +23,8 @@ DEFENSES = (
     "transformers_pi_detector",
     "spotlighting_with_delimiting",
     "repeat_user_prompt",
+    "provguard_strict",
+    "provguard_permissive",
 )
 
 
@@ -32,9 +35,15 @@ def build_pipeline(
     system_message: str | None = None,
     tool_output_format: str = "yaml",
     name_prefix: str = "baseline",
+    suite: str = "banking",
 ) -> AgentPipeline:
     if defense not in DEFENSES:
         raise ValueError(f"unknown defense {defense!r}; choose from {DEFENSES}")
+    if defense.startswith("provguard_"):
+        from provguard.agent.adapter import build_guard_pipeline
+
+        mode: Literal["strict", "permissive"] = "strict" if defense == "provguard_strict" else "permissive"
+        return build_guard_pipeline(client, mode, suite=suite)
     llm = ProvguardLLM(client)
     system = system_message if system_message is not None else load_system_message(None)
     formatter = (

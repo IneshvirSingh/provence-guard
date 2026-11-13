@@ -6,7 +6,7 @@ SHELL := /bin/bash
 UV ?= uv
 RUN := $(UV) run
 
-.PHONY: help setup check lint type test up down bench-smoke bench report train-detector export-onnx load-test tf-plan tf-apply
+.PHONY: help setup check lint type test up down check-models bench-smoke bench report train-detector export-onnx load-test tf-plan tf-apply
 
 help:
 > @grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  %-16s %s\n", $$1, $$2}'
@@ -36,7 +36,7 @@ down: ## Stop local services (keeps volumes)
 SUITE ?= banking
 DEFENSE ?= none
 ATTACK ?= important_instructions
-MODEL ?= groq/llama-3.3-70b-versatile
+MODEL ?= groq/openai/gpt-oss-120b
 REDIS_URL ?= redis://localhost:6379/0
 CASSETTE ?= results/cassettes/smoke.json
 
@@ -49,6 +49,9 @@ bench: ## make bench SUITE= DEFENSE= ATTACK= MODEL= (live, quota-guarded via $(R
 
 report: ## Generate docs/RESULTS.md from results/*.json
 > $(RUN) python -m provguard.bench report
+
+check-models: ## Verify config/providers.yaml model IDs against each enabled provider's live /models
+> $(RUN) python -m provguard.bench check-models
 
 train-detector: ## [Phase 3]
 > @echo "not implemented until Phase 3" && exit 1

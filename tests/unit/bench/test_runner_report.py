@@ -11,7 +11,7 @@ from provguard.llm.client import LLMClient
 from provguard.llm.providers import Limits, ModelRef
 
 REF = ModelRef(
-    provider="groq", model="llama-3.3-70b-versatile", base_url="https://x", api_key_env="X", limits=Limits()
+    provider="groq", model="openai/gpt-oss-120b", base_url="https://x", api_key_env="X", limits=Limits()
 )
 
 
@@ -54,7 +54,7 @@ class Scripted:
 def test_run_arm_benign_writes_results_file(tmp_path: Path):
     transport = Scripted([resp(calls=[("get_most_recent_transactions", {"n": 100})]), resp("1050")])
     client = LLMClient(REF, transport=transport)
-    spec = ArmSpec(model="groq/llama-3.3-70b-versatile", user_tasks=["user_task_1"])
+    spec = ArmSpec(model="groq/openai/gpt-oss-120b", user_tasks=["user_task_1"])
     arm = run_arm(
         spec,
         build_pipeline(client, "none"),
@@ -79,7 +79,7 @@ def test_run_arm_benign_writes_results_file(tmp_path: Path):
     )
     assert arm2.metrics.benign_utility.k == 1 and client2.summary.requests == 0
     md = render([arm])
-    assert "100.0% [" in md and "groq/llama-3.3-70b-versatile" in md
+    assert "100.0% [" in md and "groq/openai/gpt-oss-120b" in md
     assert "[PENDING]" in render([])
     target = tmp_path / "RESULTS.md"
     write_report(tmp_path / "results", target)
@@ -89,7 +89,7 @@ def test_run_arm_benign_writes_results_file(tmp_path: Path):
 def test_run_arm_with_attack_uses_named_important_instructions(tmp_path: Path):
     client = LLMClient(REF, transport=Scripted([]))  # always answers "done": no tools, nothing achieved
     spec = ArmSpec(
-        model="groq/llama-3.3-70b-versatile",
+        model="groq/openai/gpt-oss-120b",
         attack="important_instructions",
         user_tasks=["user_task_1"],
         injection_tasks=["injection_task_0"],
@@ -101,7 +101,7 @@ def test_run_arm_with_attack_uses_named_important_instructions(tmp_path: Path):
         logdir=tmp_path / "runs",
         results_dir=tmp_path / "results",
     )
-    assert arm.meta["attack_prose_model_name"] == "Llama"
+    assert arm.meta["attack_prose_model_name"] == "GPT"
     assert arm.metrics.targeted_asr.n == 1 and arm.metrics.targeted_asr.k == 0
     assert arm.metrics.utility_under_attack.k == 0 and arm.injection_tasks_as_user_tasks == {
         "injection_task_0": False
@@ -112,3 +112,9 @@ def test_run_arm_with_attack_uses_named_important_instructions(tmp_path: Path):
         and case.injection_task == "injection_task_0"
         and case.security is False
     )
+
+
+def test_partial_label_gets_its_own_results_file():
+    spec = ArmSpec(model="groq/openai/gpt-oss-120b", user_tasks=["user_task_1"], label="partial")
+    assert spec.file_stem == spec.arm_id + "__partial"
+    assert ArmSpec(model="groq/openai/gpt-oss-120b").file_stem == spec.arm_id

@@ -20,7 +20,7 @@ from provguard.llm.client import LLMClient
 from provguard.llm.providers import Limits, ModelRef
 
 REF = ModelRef(
-    provider="groq", model="llama-3.3-70b-versatile", base_url="https://x", api_key_env="X", limits=Limits()
+    provider="groq", model="openai/gpt-oss-120b", base_url="https://x", api_key_env="X", limits=Limits()
 )
 
 
@@ -121,7 +121,7 @@ def test_banking_user_task_1_runs_end_to_end_with_scripted_model():
         transport.calls[1]["messages"][-1]["role"] == "tool"
         and "Pizza party" in transport.calls[1]["messages"][-1]["content"]
     )
-    assert pipeline.name == "baseline-groq_llama-3.3-70b-versatile-none"
+    assert pipeline.name == "baseline-groq_openai_gpt-oss-120b-none"
     assert client.summary.requests == 2
 
 
@@ -129,7 +129,8 @@ def test_all_prompt_defenses_build_and_tool_filter_prunes():
     for d in DEFENSES:
         if d == "transformers_pi_detector":
             continue
-        assert build_pipeline(LLMClient(REF, transport=Scripted([])), d).name.endswith(d)
+        name = build_pipeline(LLMClient(REF, transport=Scripted([])), d).name
+        assert name.endswith(d) or (d.startswith("provguard_") and name.startswith("provguard-"))
     suite = get_suite("v1.2.2", "banking")
     task = suite.get_user_task_by_id("user_task_1")
     transport = Scripted(
@@ -154,7 +155,7 @@ def test_all_prompt_defenses_build_and_tool_filter_prunes():
 
 
 def test_prose_model_name():
-    assert prose_model_name("baseline-groq_llama-3.3-70b-versatile-none") == "Llama"
+    assert prose_model_name("baseline-groq_openai_gpt-oss-120b-none") == "GPT"
     assert prose_model_name("x-openai_gpt-oss-120b") == "GPT"
     assert prose_model_name("gemini-2.5") == "AI model developed by Google"
     assert prose_model_name(None) == "the AI language model"

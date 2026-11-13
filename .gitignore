@@ -220,7 +220,8 @@ __marimo__/
 .streamlit/secrets.toml
 
 # Provenance Guard
-runs/            # raw AgentDojo trace logs (results/*.json is committed instead)
+# raw AgentDojo trace logs (results/*.json is committed instead)
+runs/
 mlruns/
 *.onnx
 .hypothesis/

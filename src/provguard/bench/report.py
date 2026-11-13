@@ -21,19 +21,21 @@ def load_results(results_dir: Path) -> list[ArmResult]:
 def render(arms: list[ArmResult]) -> str:
     lines = [
         HEADER,
-        "| suite | defense | attack | model | benign utility | utility under attack | targeted ASR "
+        "| suite | scope | defense | attack | model | benign utility | utility under attack | targeted ASR "
         "| requests | tokens | git |",
-        "|---|---|---|---|---|---|---|---|---|---|",
+        "|---|---|---|---|---|---|---|---|---|---|---|",
     ]
     if not arms:
         lines.append(
-            "| banking | none | important_instructions | [PENDING] | [PENDING] | [PENDING] | [PENDING] "
+            "| banking | full | none | important_instructions | [PENDING] | [PENDING] | [PENDING] "
+            "| [PENDING] "
             "| - | - | - |"
         )
     for a in arms:
         m, u = a.metrics, a.usage
         lines.append(
-            f"| {a.spec.suite} | {a.spec.defense} | {a.spec.attack or 'none'} | {a.spec.model} "
+            f"| {a.spec.suite} | {a.spec.label or 'full'} | {a.spec.defense} | {a.spec.attack or 'none'} "
+            f"| {a.spec.model} "
             f"| {m.benign_utility.fmt()} | {m.utility_under_attack.fmt()} | {m.targeted_asr.fmt()} "
             f"| {u.get('requests', 0)} (+{u.get('cache_hits', 0)} cached) "
             f"| {u.get('total_tokens', 0)} | {str(a.meta.get('git_sha', ''))[:7]} |"
