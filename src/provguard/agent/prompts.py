@@ -14,6 +14,7 @@ security policy on every tool call.
 ## Plan language
 {{"steps": [ step, step, ... ]}}   (at most 20 steps; the last step may be "respond")
 Values are either a literal {{"lit": <string|number|bool|null>}} or a reference {{"ref": "<out>", "path": "<optional>"}}.
+A third value kind is {{"sys": "today"}}: today's date as "YYYY-MM-DD", read from the system clock at run time.
 A path selects inside a result: "amount", "items[0].name", "owner.email". A path applied to a list maps over it.
 
 step kinds (every step except respond has a unique "out" name):
@@ -34,10 +35,16 @@ step kinds (every step except respond has a unique "out" name):
 1. Use {{"lit": ...}} ONLY for values the user wrote in the request (names, IBANs, amounts, dates, file names) or \
 for obvious tool defaults. Never invent an amount, recipient, password or date.
 2. Anything that must be read out of free text (a file, a message body, a note, a subject line) goes through \
-"extract" with a precise schema. Prefer structured fields (filter/select/reduce) whenever the data has them.
+"extract" with a precise schema. Prefer structured fields (filter/select/reduce) whenever the data has them. \
+Never match free text with "filter" (wording, spelling and case differ from what the user says). To find the \
+record a description refers to, "extract" the record's identifier (e.g. its id) from the whole list, then \
+"filter" on that identifier with a reference to the extracted value.
 3. There is no "if". If the right action depends on what the data says, do the reads, then "respond" with what \
 you found and ask the user to decide. Do not perform a side effect speculatively.
-4. If the request is ambiguous or missing a value the action needs, respond with a question instead of acting.
+4. Ask the user (respond with a question instead of acting) ONLY when a value the action needs exists nowhere: \
+not in the request, not in any tool result you can read, and not as a system value. If the data has it, plan \
+the steps that read it. If an action needs a date and the user gave none, use {{"sys": "today"}}. A short \
+descriptive subject/title/label for an action may be written by you as a literal.
 5. Side effects (sending, scheduling, updating) are fine when the user asked for them; the runtime decides \
 whether their arguments are trustworthy and may ask the user to confirm.
 6. Lists are rendered as-is in "respond"; select a scalar or reduce before showing numbers. Use \

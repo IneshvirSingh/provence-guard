@@ -4,8 +4,9 @@ engine, and emits AgentDojo-format messages so trace- and state-based checks kee
 
 from __future__ import annotations
 
+import datetime as dt
 import json
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Any, Literal
 
@@ -92,6 +93,19 @@ def _type_of(prop: dict[str, Any]) -> str:
     return "any"
 
 
+def today_from_env(env: Any, clock: Callable[[], dt.date] = dt.date.today) -> tuple[str, str]:
+    """Today's date the way a deployed system would read it: the environment's own clock if it has one
+    (AgentDojo suites with a calendar expose ``calendar.current_day``), otherwise the process clock.
+
+    The banking environment defines no current date anywhere (verified in agentdojo==0.1.35: no clock field,
+    tool or system-message date), so banking runs use the real clock. Returns (iso date, where it came from).
+    """
+    current = getattr(getattr(env, "calendar", None), "current_day", None)
+    if isinstance(current, dt.date):
+        return current.isoformat(), "env.calendar.current_day"
+    return clock().isoformat(), "process clock"
+
+
 class GuardTrace(BaseModel):
     """What one request did, for logs and tests (also placed in ``extra_args['provguard']``)."""
 
@@ -99,6 +113,8 @@ class GuardTrace(BaseModel):
     planner_attempts: int = 0
     result: RunResult | None = None
     failure: str | None = None
+    today: str | None = None
+    today_source: str | None = None
 
 
 class ProvenanceGuard(BasePipelineElement):
@@ -115,7 +131,9 @@ class ProvenanceGuard(BasePipelineElement):
         planner: Planner | None = None,
         extractor: ExtractorCallable | None = None,
         confirm: ConfirmHandler | None = None,
+        clock: Callable[[], dt.date] = dt.date.today,
     ) -> None:
+        self.clock = clock
         self.client = client
         self.trust = trust
         self.policy = policy
@@ -142,6 +160,7 @@ class ProvenanceGuard(BasePipelineElement):
     ) -> tuple[str, FunctionsRuntime, Env, Sequence[ChatMessage], dict[str, Any]]:
         out: list[ChatMessage] = list(messages)
         trace = GuardTrace()
+        trace.today, trace.today_source = today_from_env(env, self.clock)
         specs = tool_specs(list(runtime.functions.values()), self.schemas)
 
         try:
@@ -184,6 +203,7 @@ class ProvenanceGuard(BasePipelineElement):
             extractor=self.extractor,
             confirm=self.confirm,
             prompt=query,
+            system_values={"today": trace.today},
         )
         result = runner.run(planned.plan)  # tool errors raised in call_tool end the run with status "error"
         trace.result = result
@@ -258,6 +278,10 @@ def build_guard_pipeline(
     return pipeline
 
 
+def _is_guarded(decision: Decision | None) -> bool:
+    return decision is not None and not any(r.rule.endswith(".unguarded") for r in decision.reasons)
+
+
 def guard_stats(history: Sequence[GuardTrace]) -> dict[str, Any]:
     """Aggregate what the guard did over the requests it served in this process (resumed cases are absent)."""
     results = [t.result for t in history if t.result is not None]
@@ -267,6 +291,9 @@ def guard_stats(history: Sequence[GuardTrace]) -> dict[str, Any]:
         statuses[key] = statuses.get(key, 0) + 1
     return {
         "requests": len(history),
+        "requests_reaching_guarded_call": sum(
+            1 for r in results if any(_is_guarded(rec.decision) for rec in r.records)
+        ),
         "requests_with_confirmation": sum(1 for r in results if r.confirmations > 0),
         "confirmations": sum(r.confirmations for r in results),
         "tool_calls_executed": sum(len(r.tool_calls) for r in results),
