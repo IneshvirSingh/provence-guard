@@ -173,6 +173,13 @@ class PlanRunner:
             rec.confirmed = bool(self.confirm(decision, plain))
             if not rec.confirmed:
                 return False
+        # Only after the policy has judged every argument (null ones and their sources included):
+        # a null optional argument is not passed; a null required argument stops the run.
+        spec = self.tools.get(step.tool)
+        for name in [n for n, v in plain.items() if v is None]:
+            if spec is None or spec.args.get(name, True):
+                raise PlanRuntimeError(f"{step.tool}: required argument {name!r} is null")
+            del plain[name]
         raw = self.call_tool(step.tool, plain)
         rec.executed = True
         bindings[step.out] = self.trust.label_output(

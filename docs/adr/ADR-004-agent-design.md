@@ -86,3 +86,17 @@ extractor returns `None` (core then retries once and stops). Other errors still 
    each cached response, so a results file written by a cached rerun still shows what the calls cost. Results
    also record `guard.requests_reaching_guarded_call`.
 
+
+## Amendment 4 (2026-11-13): final planner iteration, then freeze as `planner-v1`
+Last round of generic fixes (human stop rule: no further fix-rerun cycles):
+- **F8 optional extraction fields**: `FieldSpec.optional`; a null/absent optional field validates to null. A null
+  value reaching a tool call is handled *after* the policy decision (so the decision still sees the argument and
+  its sources; the C1 property test caught the first version that skipped mediation): an optional tool argument
+  is omitted, a required one stops the run.
+- **F5 subject matching**: rule 2 forbids `filter` on free text; the fictional worked example now shows
+  "extract the id from the list, then filter on the id by reference".
+- **F9 / F11**: `reduce` works on the list of records with a field-name `path`; no `select` first, no index;
+  paths contain only field names, dots and `[index]`.
+**Freeze.** `src/provguard/agent/prompts.py`, `policies/schemas/`, `policies/banking.yaml` and
+`policies/trust.yaml` at git tag `planner-v1` are frozen until Phase 9. Failures found after the tag are
+documented in `docs/FAILURES.md` and not fixed. Measurement protocol: `docs/PROTOCOL.md`.

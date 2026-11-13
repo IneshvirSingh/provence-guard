@@ -22,6 +22,9 @@ def validate_extraction(schema: Mapping[str, FieldSpec], raw: Any) -> dict[str, 
         raise ExtractionError(f"unexpected fields: {sorted(extra)}")
     out: dict[str, Scalar] = {}
     for name, spec in schema.items():
+        if spec.optional and raw.get(name) is None:
+            out[name] = None
+            continue
         if name not in raw:
             raise ExtractionError(f"missing field {name!r}")
         out[name] = _check(name, spec, raw[name])

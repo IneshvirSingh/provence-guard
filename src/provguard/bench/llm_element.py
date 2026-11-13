@@ -102,7 +102,7 @@ def from_openai_message(message: dict[str, Any]) -> ChatAssistantMessage:
 class ProvguardLLM(BasePipelineElement):
     """Drop-in LLM element: quota-guarded, cached, provider-agnostic."""
 
-    def __init__(self, client: LLMClient, temperature: float = 0.0, seed: int = 0) -> None:
+    def __init__(self, client: LLMClient, temperature: float = 0.0, seed: int | None = None) -> None:
         self.client = client
         self.temperature = temperature
         self.seed = seed

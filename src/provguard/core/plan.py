@@ -48,6 +48,7 @@ class FieldSpec(BaseModel):
     minimum: float | None = None
     maximum: float | None = None
     description: str | None = None
+    optional: bool = False  # the document may not contain it: null is accepted and stays null
 
 
 class CallTool(BaseModel):

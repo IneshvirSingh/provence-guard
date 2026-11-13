@@ -378,3 +378,51 @@ def test_sys_today_is_system_labelled_and_fails_closed_when_absent():
     assert (
         res.status == "error" and "not available" in res.records[0].error and seen == {"date": "2030-01-02"}
     )
+
+
+def test_null_optional_argument_is_omitted_and_null_required_argument_fails_closed():
+    from provguard.core import Plan, PolicySet, ToolSpec, TrustConfig
+    from provguard.core.runner import PlanRunner
+
+    seen = []
+
+    def run(arg):
+        plan = Plan.model_validate(
+            {
+                "steps": [
+                    {"op": "call", "out": "d", "tool": "doc"},
+                    {
+                        "op": "extract",
+                        "out": "e",
+                        "from": [{"ref": "d"}],
+                        "instruction": "x",
+                        "schema": {"a": {"type": "str", "optional": True}},
+                    },
+                    {
+                        "op": "call",
+                        "out": "r",
+                        "tool": "act",
+                        "args": {arg: {"ref": "e", "path": "a"}, "keep": {"lit": 1}},
+                    },
+                ]
+            }
+        )
+        return PlanRunner(
+            trust=TrustConfig(version=1, default="untrusted", tools={}),
+            policy=PolicySet.model_validate(
+                {"version": 1, "tools": {"doc": {"guarded": False}, "act": {"guarded": False}}}
+            ),
+            tools={
+                "doc": ToolSpec(name="doc"),
+                "act": ToolSpec(name="act", args={"opt": False, "req": arg == "req", "keep": False}),
+            },
+            call_tool=lambda name, args: seen.append((name, args)) or "text",
+            extractor=lambda *a: {"a": None},
+        ).run(plan)
+
+    plan_tools_ok = run("opt")
+    assert plan_tools_ok.status == "ok" and seen[-1] == ("act", {"keep": 1})
+    n = len(seen)
+    res = run("req")
+    assert res.status == "error" and "required argument 'req' is null" in res.records[-1].error
+    assert [s for s in seen[n:] if s[0] == "act"] == []

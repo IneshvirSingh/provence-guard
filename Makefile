@@ -6,7 +6,7 @@ SHELL := /bin/bash
 UV ?= uv
 RUN := $(UV) run
 
-.PHONY: help setup check lint type test up down check-models bench-smoke bench report train-detector export-onnx load-test tf-plan tf-apply
+.PHONY: help setup check lint type test up down check-models bench-smoke bench protocol report train-detector export-onnx load-test tf-plan tf-apply
 
 help:
 > @grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  %-16s %s\n", $$1, $$2}'
@@ -46,6 +46,10 @@ bench-smoke: ## Smoke subset from recorded responses (no key, no network); needs
 
 bench: ## make bench SUITE= DEFENSE= ATTACK= MODEL= (live, quota-guarded via $(REDIS_URL))
 > $(RUN) python -m provguard.bench run --suite $(SUITE) --defense $(DEFENSE) $(if $(filter none,$(ATTACK)),,--attack $(ATTACK)) --model $(MODEL) --redis-url $(REDIS_URL)
+
+K ?= 1
+protocol: ## One protocol run (docs/PROTOCOL.md): make protocol K=1|2|3 DEFENSE=none|provguard_strict
+> $(RUN) python -m provguard.bench run --suite $(SUITE) --defense $(DEFENSE) --model $(MODEL) --redis-url $(REDIS_URL) --seed $$(( $(K) - 1 )) --label r$(K) --logdir runs/r$(K) --force-rerun
 
 report: ## Generate docs/RESULTS.md from results/*.json
 > $(RUN) python -m provguard.bench report

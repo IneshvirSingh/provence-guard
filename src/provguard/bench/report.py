@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import re
+from collections import defaultdict
 from pathlib import Path
 
 from provguard.bench.runner import ArmResult
+from provguard.bench.stats import Proportion
 
 HEADER = """# Results
 
@@ -52,6 +55,72 @@ def render(arms: list[ArmResult]) -> str:
     return "\n".join(lines) + "\n"
 
 
+RUN_LABEL = re.compile(r"^r\d+$")
+
+
+def _num(task_id: str) -> int:
+    return int(task_id.rsplit("_", 1)[-1])
+
+
+def render_protocol(arms: list[ArmResult]) -> str:
+    """Repeated benign runs (labels r1, r2, ...): official utility next to audited real completions.
+
+    Audit rule (docs/PROTOCOL.md): a user task whose official check passes on the untouched environment
+    with an empty answer is vacuous; it is excluded from the audited column for every arm.
+    """
+    groups: dict[tuple[str, str, str], list[ArmResult]] = defaultdict(list)
+    for a in arms:
+        if a.spec.attack is None and a.spec.label and RUN_LABEL.match(a.spec.label) and not a.spec.user_tasks:
+            groups[(a.spec.suite, a.spec.model, a.spec.defense)].append(a)
+    if not groups:
+        return ""
+    lines = ["", "## Benign protocol: repeated runs, official vs audited utility", ""]
+    lines.append(
+        "| suite | model | defense | runs | official utility (pooled) | per-run official | "
+        "audited real completion (pooled) | per-run audited | vacuous tasks excluded |"
+    )
+    lines.append("|---|---|---|---|---|---|---|---|---|")
+    per_task: dict[tuple[str, str, str], dict[str, int]] = {}
+    vac_by_key: dict[tuple[str, str, str], set[str]] = {}
+    for key in sorted(groups):
+        runs = sorted(groups[key], key=lambda a: a.spec.label or "")
+        vacuous = {t for a in runs for t in a.meta.get("vacuous_user_tasks", [])}
+        vac_by_key[key] = vacuous
+        official = [c.utility for a in runs for c in a.cases]
+        audited = [c.utility for a in runs for c in a.cases if c.user_task not in vacuous]
+        per_run_off = ", ".join(f"{sum(c.utility for c in a.cases)}/{len(a.cases)}" for a in runs)
+        per_run_aud = ", ".join(
+            f"{sum(c.utility for c in a.cases if c.user_task not in vacuous)}"
+            f"/{sum(1 for c in a.cases if c.user_task not in vacuous)}"
+            for a in runs
+        )
+        excluded = ", ".join(str(_num(t)) for t in sorted(vacuous, key=_num)) or "-"
+        lines.append(
+            f"| {key[0]} | {key[1]} | {key[2]} | {len(runs)} | {Proportion.of(official).fmt()} "
+            f"| {per_run_off} "
+            f"| {Proportion.of(audited).fmt()} | {per_run_aud} | {excluded} |"
+        )
+        counts: dict[str, int] = defaultdict(int)
+        for a in runs:
+            for c in a.cases:
+                counts[c.user_task] += int(c.utility)
+        per_task[key] = dict(counts)
+    tasks = sorted({t for counts in per_task.values() for t in counts}, key=_num)
+    lines += ["", "Passes per user task (out of the runs above; `*` = vacuous check):", ""]
+    lines.append("| defense | " + " | ".join(str(_num(t)) for t in tasks) + " |")
+    lines.append("|---|" + "---|" * len(tasks))
+    for key in sorted(per_task):
+        cells = [f"{per_task[key].get(t, 0)}{'*' if t in vac_by_key[key] else ''}" for t in tasks]
+        lines.append(f"| {key[2]} | " + " | ".join(cells) + " |")
+    lines += [
+        "",
+        "Pooled intervals are Wilson 95% over task-runs; runs of the same task are correlated, so read "
+        "them as optimistic. Per-run counts show the spread.",
+    ]
+    return "\n".join(lines) + "\n"
+
+
 def write_report(results_dir: Path = Path("results"), out: Path = Path("docs/RESULTS.md")) -> Path:
-    out.write_text(render(load_results(results_dir)))
+    arms = load_results(results_dir)
+    out.write_text(render(arms) + render_protocol(arms))
     return out

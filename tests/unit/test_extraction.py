@@ -39,3 +39,19 @@ def test_valid_extraction_coerces_numbers():
 def test_invalid_extraction(bad):
     with pytest.raises(ExtractionError):
         validate_extraction(SCHEMA, bad)
+
+
+def test_optional_fields_accept_null_or_absence_and_required_still_fail():
+    from provguard.core.extraction import ExtractionError, validate_extraction
+    from provguard.core.plan import FieldSpec
+
+    schema = {"iban": FieldSpec(type="str"), "note": FieldSpec(type="str", optional=True)}
+    assert validate_extraction(schema, {"iban": "DE1", "note": None}) == {"iban": "DE1", "note": None}
+    assert validate_extraction(schema, {"iban": "DE1"}) == {"iban": "DE1", "note": None}
+    assert validate_extraction(schema, {"iban": "DE1", "note": "x"})["note"] == "x"
+    import pytest
+
+    with pytest.raises(ExtractionError, match="expected str"):
+        validate_extraction(schema, {"iban": None, "note": "x"})
+    with pytest.raises(ExtractionError, match="expected str"):
+        validate_extraction(schema, {"iban": "DE1", "note": 3})

@@ -100,6 +100,23 @@ def compute_metrics(results: SuiteResults, attacked: bool) -> Metrics:
     )
 
 
+def vacuous_user_tasks(suite: Any) -> list[str]:
+    """User tasks whose official utility check already passes on the untouched environment with empty output.
+
+    A do-nothing agent "solves" them, so a pass says nothing about completion (audit rule, docs/PROTOCOL.md).
+    """
+    out = []
+    for task_id, task in suite.user_tasks.items():
+        pre = suite.load_and_inject_default_environment({})
+        post = suite.load_and_inject_default_environment({})
+        try:
+            if task.utility("", pre, post):
+                out.append(task_id)
+        except Exception:  # noqa: S112 - a check that cannot run on an empty output is not vacuous
+            continue
+    return out
+
+
 def _guard_stats(pipeline: BasePipelineElement) -> dict[str, Any] | None:
     guard = next((e for e in getattr(pipeline, "elements", []) if hasattr(e, "history")), None)
     if guard is None:
@@ -156,6 +173,7 @@ def run_arm(
             "started": started.isoformat(),
             "finished": dt.datetime.now(dt.UTC).isoformat(),
             "pipeline_name": pipeline.name,
+            "vacuous_user_tasks": vacuous_user_tasks(suite),
             "attack_prose_model_name": prose_model_name(pipeline.name) if spec.attack else None,
             "versions": {
                 "provguard": _version("provguard"),

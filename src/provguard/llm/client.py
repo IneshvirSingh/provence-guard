@@ -138,6 +138,7 @@ class LLMClient:
         self._clock = clock
         self._retry_predicate = retry_predicate
         self._transport = transport
+        self.seed = 0  # default request seed; the benchmark sets it per run (run k uses seed k-1)
         self.summary = UsageSummary()
         self._tape: dict[str, dict[str, Any]] = {}
         if cassette is not None and cassette.exists():
@@ -151,7 +152,7 @@ class LLMClient:
         tools: Sequence[Mapping[str, Any]] | None = None,
         *,
         temperature: float = 0.0,
-        seed: int = 0,
+        seed: int | None = None,
         max_tokens: int | None = None,
         tool_choice: str | None = None,
         response_format: Mapping[str, Any] | None = None,
@@ -161,7 +162,7 @@ class LLMClient:
             **self.model.request_defaults,  # e.g. reasoning_effort / parallel_tool_calls from providers.yaml
             "messages": [dict(m) for m in messages],
             "temperature": temperature,
-            "seed": seed,
+            "seed": self.seed if seed is None else seed,
         }
         if tools:
             payload["tools"] = [dict(t) for t in tools]
