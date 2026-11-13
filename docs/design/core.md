@@ -29,6 +29,7 @@ CallTool {"op": "call", "out": "t1", "tool": "get_most_recent_transactions", "ar
 Select   {"op": "select", "out": "amts", "ref": "t1", "path": "amount"}          # maps over lists
 Filter   {"op": "filter", "out": "f", "ref": "t1", "field": "sender", "cmp": "eq", "value": {"lit": "GB29..."}}
 Compute  {"op": "compute", "out": "diff", "fn": "sub", "a": {"ref": "f", "path": "[0].amount"}, "b": {"lit": 12.0}}
+Reduce   {"op": "reduce", "out": "total", "ref": "tx", "path": "amount", "fn": "sum"} # sum | count | min | max (added 2026-11-13)
 Extract  {"op": "extract", "out": "bill", "from": [{"ref": "file"}], "instruction": "Find the IBAN and total",
           "schema": {"iban": {"type": "str", "pattern": "^[A-Z]{2}[0-9A-Z]{4,32}$"}, "total": {"type": "float", "minimum": 0}}}
 ForEach  {"op": "foreach", "out": "sent", "ref": "f", "max_items": 5, "steps": [ ...steps using {"ref": "item"}... ]}
@@ -41,6 +42,7 @@ Respond  {"op": "respond", "template": "You spent {total} in March."}
 | `select` | yes | the selected sub-tree keeps its own labels (projection) |
 | `filter` | yes | each kept item: its own labels ∪ labels of the inspected `field` across all examined items ∪ `value` sources (§2.6) |
 | `compute` | yes | union of both operands |
+| `reduce` | yes | union of the list's and every item's labels (every item was examined) |
 | `extract` | no (LLM) | union of every input's labels and the instruction's label (§2.5) |
 | `foreach` | yes (loop) | `out` is the list of the body's last `out` per iteration; `item` carries the element's labels |
 | `respond` | yes | not labelled (goes to the user) |

@@ -15,6 +15,7 @@ Kind = Literal["USER", "SYSTEM", "PLANNER", "TOOL"]
 Scalar = str | int | float | bool | None
 Cmp = Literal["eq", "ne", "lt", "le", "gt", "ge", "contains"]
 Fn = Literal["add", "sub", "mul", "div"]
+ReduceFn = Literal["sum", "count", "min", "max"]
 
 
 class ProvenanceError(ValueError):
@@ -252,6 +253,25 @@ def compute(fn: Fn, a: Labeled, b: Labeled) -> Labeled:
     if isinstance(r, float) and not math.isfinite(r):
         raise ProvenanceError("non-finite result")
     return Labeled(r, a.all_sources() | b.all_sources())
+
+
+def reduce_items(node: Labeled, fn: ReduceFn) -> Labeled:
+    """Aggregate a labelled list into one number; the result carries every item's sources (design §1)."""
+    if not isinstance(node.value, tuple):
+        raise ProvenanceError("reduce needs a list")
+    items = [_push(item, node.sources) for item in node.value]
+    sources = union(node.sources, *(i.all_sources() for i in items))
+    if fn == "count":
+        return Labeled(len(items), sources)
+    try:
+        numbers = [_number(i, f"item {k}") for k, i in enumerate(items)]
+    except ProvenanceError as e:
+        raise ProvenanceError(f"reduce {fn} needs a list of numbers (give reduce a numeric path): {e}") from e
+    if fn == "sum":
+        return Labeled(sum(numbers), sources)
+    if not numbers:
+        raise ProvenanceError(f"{fn} of an empty list")
+    return Labeled(min(numbers) if fn == "min" else max(numbers), sources)
 
 
 def extracted(raw: Any, inputs: Sequence[Labeled], instruction: Labeled) -> Labeled:

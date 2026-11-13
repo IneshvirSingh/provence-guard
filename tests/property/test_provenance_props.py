@@ -91,8 +91,8 @@ def test_filter_is_monotone_and_taints_with_the_inspected_field(lst, key, cmp, v
 def test_compute_carries_both_operands(fn, x, sx, y, sy):
     try:
         out = compute(fn, Labeled(x, sx), Labeled(y, sy))
-    except ProvenanceError:
-        assert fn == "div" and y == 0
+    except ProvenanceError as e:  # division by zero, or overflow to inf (hypothesis found 1 / 2.2e-311)
+        assert "zero" in str(e) or "non-finite" in str(e)
         return
     assert out.all_sources() == union(sx, sy)
     assert isinstance(out.value, int | float) and not isinstance(out.value, bool)

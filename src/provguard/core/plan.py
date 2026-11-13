@@ -7,7 +7,7 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from provguard.core.provenance import Cmp, Fn, Scalar
+from provguard.core.provenance import Cmp, Fn, ReduceFn, Scalar
 
 MAX_STEPS = 20
 MAX_ITEMS = 25
@@ -78,6 +78,17 @@ class Compute(BaseModel):
     b: Value
 
 
+class Reduce(BaseModel):
+    """Aggregate a list of numbers (or count any list) deterministically."""
+
+    model_config = ConfigDict(extra="forbid")
+    op: Literal["reduce"]
+    out: str
+    ref: str
+    fn: ReduceFn
+    path: str = ""  # sugar: select this field of each item first (``{"ref": "tx", "path": "amount"}``)
+
+
 class Extract(BaseModel):
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
     op: Literal["extract"]
@@ -93,7 +104,7 @@ class Respond(BaseModel):
     template: str
 
 
-BodyStep = Annotated[CallTool | Select | Filter | Compute | Extract, Field(discriminator="op")]
+BodyStep = Annotated[CallTool | Select | Filter | Compute | Reduce | Extract, Field(discriminator="op")]
 
 
 class ForEach(BaseModel):
@@ -106,7 +117,7 @@ class ForEach(BaseModel):
 
 
 Step = Annotated[
-    CallTool | Select | Filter | Compute | Extract | ForEach | Respond, Field(discriminator="op")
+    CallTool | Select | Filter | Compute | Reduce | Extract | ForEach | Respond, Field(discriminator="op")
 ]
 
 
@@ -169,7 +180,7 @@ def _check_step(
         for v in step.args.values():
             _use_value(v, scope)
         _define(step.out, scope)
-    elif isinstance(step, Select):
+    elif isinstance(step, Select | Reduce):
         _use(step.ref, scope)
         _define(step.out, scope)
     elif isinstance(step, Filter):

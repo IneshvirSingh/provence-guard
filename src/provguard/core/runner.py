@@ -22,6 +22,7 @@ from provguard.core.plan import (
     ForEach,
     Lit,
     Plan,
+    Reduce,
     Ref,
     Respond,
     Select,
@@ -38,6 +39,7 @@ from provguard.core.provenance import (
     extracted,
     filter_items,
     ground_literal,
+    reduce_items,
     scalar,
     select,
     union,
@@ -147,6 +149,8 @@ class PlanRunner:
             bindings[step.out] = compute(
                 step.fn, self._value(step.a, bindings), self._value(step.b, bindings)
             )
+        elif isinstance(step, Reduce):
+            bindings[step.out] = reduce_items(select(bindings[step.ref], step.path), step.fn)
         else:
             bindings[step.out] = self._extract(step, bindings)
         rec.executed = True
