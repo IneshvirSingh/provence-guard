@@ -18,18 +18,26 @@ def load_results(results_dir: Path) -> list[ArmResult]:
     return [ArmResult.model_validate_json(p.read_text()) for p in sorted(results_dir.glob("*.json"))]
 
 
+def _guarded(a: ArmResult) -> str:
+    if not a.guard:
+        return "-"
+    g = a.guard
+    reached, total = g.get("requests_reaching_guarded_call", 0), g.get("requests", 0)
+    return f"{reached}/{total} (CONFIRM {g.get('requests_with_confirmation', 0)})"
+
+
 def render(arms: list[ArmResult]) -> str:
     lines = [
         HEADER,
         "| suite | scope | defense | attack | model | benign utility | utility under attack | targeted ASR "
-        "| requests | tokens | git |",
-        "|---|---|---|---|---|---|---|---|---|---|---|",
+        "| requests | tokens live (+ served from cache) | reached guarded call | git |",
+        "|---|---|---|---|---|---|---|---|---|---|---|---|",
     ]
     if not arms:
         lines.append(
             "| banking | full | none | important_instructions | [PENDING] | [PENDING] | [PENDING] "
             "| [PENDING] "
-            "| - | - | - |"
+            "| - | - | - | - |"
         )
     for a in arms:
         m, u = a.metrics, a.usage
@@ -38,7 +46,8 @@ def render(arms: list[ArmResult]) -> str:
             f"| {a.spec.model} "
             f"| {m.benign_utility.fmt()} | {m.utility_under_attack.fmt()} | {m.targeted_asr.fmt()} "
             f"| {u.get('requests', 0)} (+{u.get('cache_hits', 0)} cached) "
-            f"| {u.get('total_tokens', 0)} | {str(a.meta.get('git_sha', ''))[:7]} |"
+            f"| {u.get('total_tokens', 0)} (+{u.get('cached_total_tokens', 0)}) | {_guarded(a)} "
+            f"| {str(a.meta.get('git_sha', ''))[:7]} |"
         )
     return "\n".join(lines) + "\n"
 

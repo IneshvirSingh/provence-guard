@@ -75,6 +75,9 @@ class ChatResult(BaseModel):
 class UsageSummary(BaseModel):
     requests: int = 0
     cache_hits: int = 0
+    cached_prompt_tokens: int = 0  # what the cache hits cost when they were first made live
+    cached_completion_tokens: int = 0
+    cached_total_tokens: int = 0
     prompt_tokens: int = 0
     completion_tokens: int = 0
     total_tokens: int = 0
@@ -173,6 +176,10 @@ class LLMClient:
         raw: dict[str, Any] | None = json.loads(hit) if hit is not None else self._tape.get(key)
         if raw is not None:
             self.summary.cache_hits += 1
+            hit_usage = Usage.model_validate(raw.get("usage") or {})
+            self.summary.cached_prompt_tokens += hit_usage.prompt_tokens
+            self.summary.cached_completion_tokens += hit_usage.completion_tokens
+            self.summary.cached_total_tokens += hit_usage.total_tokens
             self._record(key, raw)  # a cache hit still belongs in the cassette
             return self._result(raw, key, cached=True)
         if self.mode == "replay":

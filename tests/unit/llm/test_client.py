@@ -141,5 +141,8 @@ def test_record_mode_writes_cache_hits_into_the_cassette(tmp_path):
     rec = LLMClient(ref, transport=transport, cache=cache, mode="record", cassette=tape)
     r = rec.chat([{"role": "user", "content": "x"}])
     assert r.cached and calls == 1 and tape.exists()
+    assert (
+        rec.summary.total_tokens == 0 and rec.summary.cached_total_tokens == 3
+    )  # original live cost is kept
     replay = LLMClient(ref, transport=transport, mode="replay", cassette=tape)
     assert replay.chat([{"role": "user", "content": "x"}]).message["content"] == "hi" and calls == 1
