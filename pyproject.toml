@@ -81,7 +81,7 @@ ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 # agentdojo ships no py.typed, so its classes are Any; subclassing them is the whole point of this package.
-module = ["provguard.bench.*"]
+module = ["provguard.bench.*", "provguard.agent.adapter"]
 disallow_subclassing_any = false
 
 [tool.pytest.ini_options]
@@ -93,7 +93,7 @@ markers = [
 ]
 
 [tool.coverage.run]
-source = ["provguard.core", "provguard.llm", "provguard.bench"]
+source = ["provguard.core", "provguard.llm", "provguard.bench", "provguard.agent"]
 branch = true
 
 [tool.coverage.report]

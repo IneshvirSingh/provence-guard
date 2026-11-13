@@ -1,0 +1,229 @@
+"""AgentDojo adapter: a ``BasePipelineElement`` that plans, mediates every tool call through the policy
+engine, and emits AgentDojo-format messages so trace- and state-based checks keep working (recon §7, ADR-004).
+"""
+
+from __future__ import annotations
+
+import json
+from collections.abc import Sequence
+from pathlib import Path
+from typing import Any, Literal
+
+from agentdojo.agent_pipeline.agent_pipeline import AgentPipeline
+from agentdojo.agent_pipeline.base_pipeline_element import BasePipelineElement
+from agentdojo.agent_pipeline.basic_elements import InitQuery, SystemMessage
+from agentdojo.agent_pipeline.tool_execution import tool_result_to_str
+from agentdojo.functions_runtime import EmptyEnv, Env, Function, FunctionCall, FunctionsRuntime
+from agentdojo.types import (
+    ChatAssistantMessage,
+    ChatMessage,
+    ChatToolResultMessage,
+    text_content_block_from_string,
+)
+from pydantic import BaseModel
+
+from provguard.agent.extractor import LLMExtractor
+from provguard.agent.planner import Planner, PlannerError
+from provguard.core.plan import ToolSpec
+from provguard.core.policy import Decision, PolicySet
+from provguard.core.runner import (
+    ConfirmHandler,
+    ExtractorCallable,
+    PlanRunner,
+    PlanRuntimeError,
+    RunResult,
+    confirm_permissive,
+    confirm_strict,
+)
+from provguard.core.trust import TrustConfig
+from provguard.llm.client import LLMClient
+
+Mode = Literal["strict", "permissive"]
+POLICY_DIR = Path(__file__).resolve().parents[3] / "policies"
+GUARD_SYSTEM_MESSAGE = (
+    "You are an AI language model who assists the user by using the given tools. Every tool call is planned "
+    "up front and checked against a provenance policy before it runs."
+)
+
+
+def tool_specs(functions: Sequence[Function]) -> dict[str, ToolSpec]:
+    """AgentDojo ``Function`` -> planner/validator ``ToolSpec`` (names, required args, short description)."""
+    specs: dict[str, ToolSpec] = {}
+    for f in functions:
+        schema = f.parameters.model_json_schema()
+        required = set(schema.get("required") or [])
+        props: dict[str, Any] = schema.get("properties") or {}
+        args = {name: name in required for name in props}
+        params = "; ".join(
+            f"{name}: {_type_of(p)}" + (f" - {p['description']}" if p.get("description") else "")
+            for name, p in props.items()
+        )
+        desc = " ".join(str(f.description).split())
+        specs[f.name] = ToolSpec(name=f.name, args=args, description=f"{desc} [{params}]" if params else desc)
+    return specs
+
+
+def _type_of(prop: dict[str, Any]) -> str:
+    if "type" in prop:
+        return str(prop["type"])
+    if "anyOf" in prop:
+        return "|".join(str(o.get("type", "?")) for o in prop["anyOf"])
+    return "any"
+
+
+class GuardTrace(BaseModel):
+    """What one request did, for logs and tests (also placed in ``extra_args['provguard']``)."""
+
+    plan: dict[str, Any] | None = None
+    planner_attempts: int = 0
+    result: RunResult | None = None
+    failure: str | None = None
+
+
+class ProvenanceGuard(BasePipelineElement):
+    """Plan -> policy-mediated execution -> response, inside an AgentDojo pipeline."""
+
+    def __init__(
+        self,
+        client: LLMClient,
+        *,
+        trust: TrustConfig,
+        policy: PolicySet,
+        mode: Mode = "strict",
+        planner: Planner | None = None,
+        extractor: ExtractorCallable | None = None,
+        confirm: ConfirmHandler | None = None,
+    ) -> None:
+        self.client = client
+        self.trust = trust
+        self.policy = policy
+        self.mode = mode
+        self.planner = planner or Planner(client)
+        self.extractor = extractor or LLMExtractor(client)
+        self.confirm = confirm or (confirm_strict if mode == "strict" else confirm_permissive)
+        self.name = f"provguard-{mode}-{client.model.id.replace('/', '_')}"
+        self.last: GuardTrace | None = None
+
+    def query(
+        self,
+        query: str,
+        runtime: FunctionsRuntime,
+        env: Env = EmptyEnv(),  # noqa: B008 - AgentDojo's signature
+        messages: Sequence[ChatMessage] = [],
+        extra_args: dict[str, Any] = {},  # noqa: B006 - AgentDojo's signature
+    ) -> tuple[str, FunctionsRuntime, Env, Sequence[ChatMessage], dict[str, Any]]:
+        out: list[ChatMessage] = list(messages)
+        trace = GuardTrace()
+        specs = tool_specs(list(runtime.functions.values()))
+
+        try:
+            planned = self.planner.plan(query, specs)
+        except PlannerError as e:
+            trace.failure = str(e)
+            out.append(
+                _assistant(f"I could not produce a valid plan for this request, so I did nothing. ({e})")
+            )
+            return self._finish(query, runtime, env, out, extra_args, trace)
+        trace.plan = planned.plan.model_dump(by_alias=True, exclude_none=True)
+        trace.planner_attempts = planned.attempts
+        out.append(_assistant("Plan:\n```json\n" + json.dumps(trace.plan, indent=1) + "\n```"))
+
+        counter = {"n": 0}
+
+        def call_tool(name: str, args: dict[str, Any]) -> Any:
+            counter["n"] += 1
+            call = FunctionCall(function=name, args=dict(args), id=f"call_{counter['n']}")
+            out.append(ChatAssistantMessage(role="assistant", content=None, tool_calls=[call]))
+            result, error = runtime.run_function(env, name, args)
+            out.append(
+                ChatToolResultMessage(
+                    role="tool",
+                    tool_call=call,
+                    tool_call_id=call.id,
+                    content=[text_content_block_from_string(error if error else tool_result_to_str(result))],
+                    error=error,
+                )
+            )
+            if error:
+                raise PlanRuntimeError(f"{name}: {error}")
+            return result
+
+        runner = PlanRunner(
+            trust=self.trust,
+            policy=self.policy,
+            tools=specs,
+            call_tool=call_tool,
+            extractor=self.extractor,
+            confirm=self.confirm,
+            prompt=query,
+        )
+        result = runner.run(planned.plan)  # tool errors raised in call_tool end the run with status "error"
+        trace.result = result
+        out.append(_assistant(self._final_text(result)))
+        return self._finish(query, runtime, env, out, extra_args, trace)
+
+    def _final_text(self, result: RunResult) -> str:
+        if result.status == "ok":
+            return result.response or "Done."
+        if result.status == "denied":
+            rec = next((r for r in reversed(result.records) if r.decision is not None), None)
+            if rec is None or rec.decision is None:
+                return "I did not perform the requested action because the policy did not allow it."
+            return _explain(rec.decision, rec.confirmed)
+        last = result.records[-1] if result.records else None
+        return f"I stopped before finishing: {last.error if last else 'unknown error'}"
+
+    def _finish(
+        self,
+        query: str,
+        runtime: FunctionsRuntime,
+        env: Env,
+        out: list[ChatMessage],
+        extra_args: dict[str, Any],
+        trace: GuardTrace,
+    ) -> tuple[str, FunctionsRuntime, Env, Sequence[ChatMessage], dict[str, Any]]:
+        self.last = trace
+        return query, runtime, env, out, {**extra_args, "provguard": trace.model_dump()}
+
+
+def _assistant(text: str) -> ChatAssistantMessage:
+    return ChatAssistantMessage(
+        role="assistant", content=[text_content_block_from_string(text)], tool_calls=None
+    )
+
+
+def _explain(decision: Decision, confirmed: bool | None) -> str:
+    reasons = [r for r in decision.reasons if r.outcome != "ALLOW"]
+    why = "; ".join(f"{r.arg}: {r.message}" for r in reasons) or "policy"
+    if decision.verdict == "CONFIRM" and confirmed is False:
+        return (
+            f"I did not call {decision.tool}: its arguments come from data I cannot verify ({why}). "
+            "Please confirm them explicitly if you want me to proceed."
+        )
+    return f"I did not call {decision.tool}: the policy denied it ({why})."
+
+
+def build_guard_pipeline(
+    client: LLMClient,
+    mode: Mode = "strict",
+    *,
+    suite: str = "banking",
+    trust_path: Path | None = None,
+    policy_path: Path | None = None,
+    extractor_client: LLMClient | None = None,
+) -> AgentPipeline:
+    trust = TrustConfig.load(trust_path or POLICY_DIR / "trust.yaml")
+    policy = PolicySet.load(policy_path or POLICY_DIR / f"{suite}.yaml")
+    guard = ProvenanceGuard(
+        client,
+        trust=trust,
+        policy=policy,
+        mode=mode,
+        extractor=LLMExtractor(extractor_client) if extractor_client is not None else None,
+    )
+    pipeline = AgentPipeline([SystemMessage(GUARD_SYSTEM_MESSAGE), InitQuery(), guard])
+    pipeline.name = guard.name
+    return pipeline
+
+
+__all__ = ["GuardTrace", "Mode", "ProvenanceGuard", "build_guard_pipeline", "tool_specs"]
