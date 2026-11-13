@@ -22,25 +22,25 @@ Scaffold (uv, ruff, mypy, pytest, pre-commit with gitleaks, Makefile, docker-com
   `tests/unit` + `tests/property` (hypothesis). Coverage ≥ 85%.
 - Acceptance: property tests prove C1 (no untrusted auto-allow) for arbitrary compositions. → mini-GATE 2a.
 
-## Phase 1: Baselines and evaluation harness — harness DONE; smoke recorded 2026-11-13; full arms pending (quota-chunked)
-Quota guard (Redis, limits from `config/providers.yaml`), resumable async runner with sha256 cache and cassette
-mode, AgentDojo driver via Python API with Groq-backed `OpenAILLM` (verify `developer` role; verify
-`important_instructions` model-name constraint; ADR-003 on run scheduling: Codespace chunks vs GitHub Actions),
-banking runs: no defense + every applicable shipped defense under `important_instructions`; metrics with Wilson
-CIs; `make report`; ~10-case smoke subset with recorded responses. **Δ** `transformers_pi_detector` baseline needs
-torch: run it on Colab/Actions or defer to Phase 3 (decide in ADR-003). → GATE 1.
+## Phase 1 + 2b: baselines, harness and the defense end-to-end — code DONE; planner frozen at tag `planner-v1`
+Harness (ADR-003), agent (ADR-004 + amendments 1–4), output schemas, protocol (`docs/PROTOCOL.md`), audited
+utility. Smoke subset recorded. Benign protocol (3 runs × `none`, `provguard_strict`) in progress, limited
+only by the 200k tokens/day quota. No further planner changes until Phase 9 (stop rule, 2026-11-13).
 
-## Phase 2b: The defense end-to-end — agent code DONE 2026-11-13 (ADR-004); first live run on 1 task; arms pending
-Planner + quarantined extractor + policy engine + confirmation handlers (strict/permissive/interactive) inside
-one AgentDojo pipeline element; full banking runs both modes; confirmation rate; overhead; `docs/FAILURES.md`;
-fallback (argument-provenance matching) if utility collapses. → GATE 2.
+## Next steps, in order (details: `docs/HANDOFF.md` §5)
+1. Finish the benign protocol runs; report official and audited utility as measured.
+2. ADR-005, then a GitHub Actions workflow that runs one quota-sized chunk per day, resumable, state persisted
+   (`workflow_dispatch` only until the human approves the schedule).
+3. Attacked arms through that workflow: `provguard_strict`, `provguard_permissive`, `none`, then the shipped
+   baseline defenses. → GATE 1 and GATE 2 reviewed together.
+4. Phase 3.
 
 ## Phase 3: Own detector (data card, dedup + leak check, Colab training, MLflow, ONNX, HF Hub, AgentDojo arm) → GATE 3
 ## Phase 4: Adaptive attacker (local only), McNemar, budget curves → GATE 4
 ## Phase 5: RAG + custom docs suite (or documented cut) → GATE 5
 ## Phase 6: Production service (FastAPI, auth, audit log, abuse controls, demo UI, load test) → GATE 6
 ## Phase 7: CI/CD, Terraform, Azure for Students, rollback drill, runbook → GATE 7
-## Phase 8: Results, write-up, README, interview prep, upstream PR (candidate: `is_task_injectable` bug) → GATE 8
+## Phase 8: Results, write-up, README, interview prep, upstream issues (`is_task_injectable` bug; `docs/upstream/` draft for banking tasks 5/6) → GATE 8
 ## Phase 9: Stretch (MCP proxy, QLoRA extractor, Slack held-out run, latency work) — only on explicit go
 
 ## Scope-cut ladder (unchanged): stretch → custom docs suite → self-hosted Langfuse (**taken**) → live demo →

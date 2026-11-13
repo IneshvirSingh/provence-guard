@@ -190,3 +190,19 @@ Measured (16 user tasks, benign, gpt-oss-120b; files `results/banking__{none,pro
 Not done: smoke files in `results/*smoke*` predate amendment 3 (old planner prompt); attacked arms; step 4
 (Actions workflow). Option-4 ADR draft not written: the trigger (strict below half of undefended) did not fire.
 
+## Session 7 — 2026-11-13 (Claude Fable 5.2)
+
+**Final planner iteration, freeze (`planner-v1`), protocol defined; protocol runs limited by today's quota.**
+
+Built: optional extraction fields (F8) with null arguments handled after the policy decision (the C1 property
+test caught a first version that skipped mediation); prompt: id-based matching in the fictional example (F5),
+reduce/path rules (F9, F11); per-run seeds; `vacuous_user_tasks` audit; protocol section in `docs/RESULTS.md`;
+`make protocol`; `docs/PROTOCOL.md`; `docs/upstream/agentdojo-banking-presatisfied-utility.md`; `PLAN.md` and
+`docs/HANDOFF.md` rewritten as the brief for Opus. ADR-004 amendment 4. Tag `planner-v1` pushed.
+
+Measured: vacuous banking checks = tasks 5, 6, 8, 9, 10 (5 of 16 pass with no action). Protocol run status is
+whatever `results/*__r*.json` contains; the aggregate table is generated into `docs/RESULTS.md`.
+
+Blocked: `QuotaExhausted` for gpt-oss-120b at 19:05 UTC (our guard's UTC-day window; ≈200k tokens used today).
+Remaining protocol runs resume after 00:00 UTC with `make protocol K=.. DEFENSE=..`.
+
