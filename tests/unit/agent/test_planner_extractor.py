@@ -71,3 +71,35 @@ def test_extractor_delimits_documents_and_returns_json(make_client):
     assert '"minimum": 0' in transport.payloads[0]["messages"][0]["content"]
     assert transport.payloads[0].get("tools") is None
     assert ex([], "x", schema) is None  # bad JSON -> None; the runner validates and fails closed
+
+
+class Boom(Exception):
+    status_code = 400
+
+
+def test_provider_json_failure_counts_as_a_failed_attempt(make_client):
+    calls = {"n": 0}
+
+    def transport(payload):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise Boom("Failed to generate JSON")
+        from .conftest import reply
+
+        return reply(GOOD)
+
+    res = Planner(make_client(transport)).plan("read offsite", TOOLS)
+    assert res.attempts == 2
+
+    def always(payload):
+        raise Boom("Failed to generate JSON")
+
+    with pytest.raises(PlannerError, match="could not generate"):
+        Planner(make_client(always)).plan("x", TOOLS)
+    assert LLMExtractor(make_client(always))(["d"], "i", {"a": FieldSpec(type="str")}) is None
+
+    def other(payload):
+        raise RuntimeError("network")
+
+    with pytest.raises(RuntimeError):
+        Planner(make_client(other)).plan("x", TOOLS)

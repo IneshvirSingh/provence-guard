@@ -17,6 +17,11 @@ JSON_OBJECT = {"type": "json_object"}
 _FENCE = re.compile(r"^\s*```(?:json)?\s*(.*?)\s*```\s*$", re.DOTALL)
 
 
+def is_generation_failure(exc: BaseException) -> bool:
+    """Provider-side 400 for JSON mode (Groq: "Failed to generate JSON", seen 2026-11-13). Not transient."""
+    return getattr(exc, "status_code", None) == 400
+
+
 class PlannerError(RuntimeError):
     """No valid plan after the allowed attempts; the agent fails closed."""
 
@@ -44,26 +49,45 @@ def parse_plan(text: str, tools: Mapping[str, ToolSpec]) -> Plan:
     return plan
 
 
-def render_tools(tools: Mapping[str, ToolSpec]) -> str:
+def render_tools(tools: Mapping[str, ToolSpec], types: Mapping[str, str] | None = None) -> str:
     lines = []
     for spec in tools.values():
         args = ", ".join(f"{a}{'' if req else '?'}" for a, req in spec.args.items())
-        lines.append(f"- {spec.name}({args}): {spec.description}".rstrip(": "))
-    return "\n".join(lines) or "(no tools)"
+        line = f"- {spec.name}({args}): {spec.description}".rstrip(": ")
+        lines.append(f"{line}\n    returns: {spec.returns}" if spec.returns else line)
+    out = "\n".join(lines) or "(no tools)"
+    if types:
+        out += "\n\n## Result types\n" + "\n".join(f"- {name}: {text}" for name, text in types.items())
+    return out
 
 
 class Planner:
-    def __init__(self, client: LLMClient, *, max_attempts: int = 2, temperature: float = 0.0) -> None:
+    def __init__(
+        self,
+        client: LLMClient,
+        *,
+        max_attempts: int = 2,
+        temperature: float = 0.0,
+        types: Mapping[str, str] | None = None,
+    ) -> None:
         self.client = client
+        self.types = dict(types or {})
         self.max_attempts = max_attempts
         self.temperature = temperature
 
     def plan(self, prompt: str, tools: Mapping[str, ToolSpec]) -> PlanResult:
-        messages: list[dict[str, Any]] = list(planner_messages(prompt, render_tools(tools)))
+        messages: list[dict[str, Any]] = list(planner_messages(prompt, render_tools(tools, self.types)))
         last_error = "no attempt made"
         raw = ""
         for attempt in range(1, self.max_attempts + 1):
-            result = self.client.chat(messages, temperature=self.temperature, response_format=JSON_OBJECT)
+            try:
+                result = self.client.chat(messages, temperature=self.temperature, response_format=JSON_OBJECT)
+            except Exception as e:
+                if not is_generation_failure(e):
+                    raise
+                raw, last_error = "", "the provider could not generate valid JSON"
+                messages += [{"role": "user", "content": "Return one valid JSON object for the plan."}]
+                continue
             raw = str(result.message.get("content") or "")
             try:
                 return PlanResult(plan=parse_plan(raw, tools), attempts=attempt, raw=raw)
@@ -79,4 +103,12 @@ class Planner:
         raise PlannerError(f"no valid plan after {self.max_attempts} attempts: {last_error}")
 
 
-__all__ = ["JSON_OBJECT", "PlanResult", "Planner", "PlannerError", "parse_plan", "render_tools"]
+__all__ = [
+    "JSON_OBJECT",
+    "PlanResult",
+    "Planner",
+    "PlannerError",
+    "is_generation_failure",
+    "parse_plan",
+    "render_tools",
+]

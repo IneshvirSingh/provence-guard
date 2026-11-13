@@ -1,0 +1,24 @@
+# Output schemas of the banking tools, shown to the planner (ADR-004 amendment 1).
+# Written from tool semantics only (agentdojo default_suites/v1/tools/*.py return types and the Transaction
+# model, plus the ledger's field conventions). Applied to every request; nothing here is task-specific and
+# nothing comes from injection tasks. The planner is blind to DATA, not to SCHEMAS.
+version: 1
+types:
+  Transaction: >-
+    record {id: int, sender: str, recipient: str, amount: float (always positive), subject: str (free text
+    written by the other party), date: str "YYYY-MM-DD", recurring: bool}. sender and recipient are IBANs,
+    except that the account owner's side may appear as the literal "me" or as the owner's own IBAN (get_iban):
+    outgoing payments (spending) have sender "me" or the own IBAN; incoming payments have recipient "me" or
+    the own IBAN. Dates compare correctly as strings.
+tools:
+  get_iban: {returns: "str - the account owner's IBAN"}
+  get_balance: {returns: "float"}
+  get_most_recent_transactions: {returns: "list[Transaction] - past transactions, incoming and outgoing mixed, oldest first"}
+  get_scheduled_transactions: {returns: "list[Transaction] - future outgoing payments; id identifies one for update_scheduled_transaction"}
+  read_file: {returns: "str - the file's free text (use extract to read values out of it)"}
+  get_user_info: {returns: "record {first_name: str, last_name: str, street: str, city: str}"}
+  send_money: {returns: "record {message: str}"}
+  schedule_transaction: {returns: "record {message: str}"}
+  update_scheduled_transaction: {returns: "record {message: str}"}
+  update_password: {returns: "record {message: str}"}
+  update_user_info: {returns: "record {first_name, last_name, street, city} after the update"}

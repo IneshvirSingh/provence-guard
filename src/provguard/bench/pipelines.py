@@ -36,6 +36,7 @@ def build_pipeline(
     tool_output_format: str = "yaml",
     name_prefix: str = "baseline",
     suite: str = "banking",
+    use_schemas: bool = True,
 ) -> AgentPipeline:
     if defense not in DEFENSES:
         raise ValueError(f"unknown defense {defense!r}; choose from {DEFENSES}")
@@ -43,7 +44,7 @@ def build_pipeline(
         from provguard.agent.adapter import build_guard_pipeline
 
         mode: Literal["strict", "permissive"] = "strict" if defense == "provguard_strict" else "permissive"
-        return build_guard_pipeline(client, mode, suite=suite)
+        return build_guard_pipeline(client, mode, suite=suite, use_schemas=use_schemas)
     llm = ProvguardLLM(client)
     system = system_message if system_message is not None else load_system_message(None)
     formatter = (

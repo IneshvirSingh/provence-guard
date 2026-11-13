@@ -162,3 +162,38 @@ def test_ground_literal_numbers_never_match_absent_tokens(n, prompt):
 @given(sources)
 def test_scalar_keeps_exactly_its_sources(s):
     assert scalar(1, s).all_sources() == {s}
+
+
+@given(records(), st.sampled_from(["sum", "count", "min", "max"]), st.data())
+@settings(max_examples=200, deadline=None)
+def test_reduce_carries_every_source_on_the_path_of_every_item(recs, fn, data):
+    """reduce(select(list, path)) == union of: the list's, every record's and every selected field's sources.
+
+    Nothing examined is dropped (no laundering through aggregation) and nothing unexamined is added.
+    """
+    from provguard.core.provenance import reduce_items
+
+    names = ["amount"] if not recs.value else sorted(recs.value[0].value)
+    key = data.draw(st.sampled_from(names))
+    expected = union(
+        recs.sources,
+        *(item.sources for item in recs.value),
+        *(item.value[key].sources for item in recs.value),
+    )
+    try:
+        out = reduce_items(select(recs, key), fn)
+    except ProvenanceError as e:
+        assert fn in ("min", "max") and not recs.value and "empty" in str(e)
+        return
+    assert out.sources == expected and out.all_sources() == expected
+    if any(not s.trusted for s in expected):
+        assert not out.is_trusted()  # one untrusted item or ancestor taints the aggregate
+
+
+@given(labeled_trees(3).filter(lambda t: isinstance(t.value, tuple)))
+@settings(max_examples=100, deadline=None)
+def test_reduce_count_carries_all_sources_of_arbitrary_lists(lst):
+    from provguard.core.provenance import reduce_items
+
+    out = reduce_items(lst, "count")
+    assert out.value == len(lst.value) and out.sources == lst.all_sources()

@@ -34,7 +34,12 @@ class LLMExtractor:
         messages = extractor_messages(
             [render_document(d) for d in inputs], instruction, render_schema(schema)
         )
-        result = self.client.chat(messages, temperature=self.temperature, response_format=JSON_OBJECT)
+        try:
+            result = self.client.chat(messages, temperature=self.temperature, response_format=JSON_OBJECT)
+        except Exception as e:
+            if getattr(e, "status_code", None) != 400:  # 400 = provider could not generate JSON
+                raise
+            return None
         try:
             return json.loads(str(result.message.get("content") or ""))
         except json.JSONDecodeError:

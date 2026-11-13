@@ -69,6 +69,7 @@ class ArmResult(BaseModel):
     injection_tasks_as_user_tasks: dict[str, bool]
     usage: dict[str, Any]
     metrics: Metrics
+    guard: dict[str, Any] | None = None  # provguard arms only: confirmations, statuses (this process's cases)
 
 
 def git_sha() -> str:
@@ -97,6 +98,15 @@ def compute_metrics(results: SuiteResults, attacked: bool) -> Metrics:
         targeted_asr=Proportion.of(asr),
         injection_tasks_solvable=Proportion.of(results["injection_tasks_utility_results"].values()),
     )
+
+
+def _guard_stats(pipeline: BasePipelineElement) -> dict[str, Any] | None:
+    guard = next((e for e in getattr(pipeline, "elements", []) if hasattr(e, "history")), None)
+    if guard is None:
+        return None
+    from provguard.agent.adapter import guard_stats
+
+    return guard_stats(guard.history)
 
 
 def run_arm(
@@ -156,6 +166,7 @@ def run_arm(
         cases=cases,
         injection_tasks_as_user_tasks=dict(results["injection_tasks_utility_results"]),
         usage=client.summary.model_dump(),
+        guard=_guard_stats(pipeline),
         metrics=compute_metrics(results, attacked=spec.attack is not None),
     )
     results_dir.mkdir(parents=True, exist_ok=True)

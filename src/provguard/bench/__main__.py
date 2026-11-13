@@ -51,6 +51,7 @@ def main(argv: list[str] | None = None) -> int:
     run.add_argument("--smoke", action="store_true", help="the fixed ~10-case smoke subset")
     run.add_argument("--force-rerun", action="store_true")
     run.add_argument("--label", default=None, help="results file suffix; default smoke/partial/none")
+    run.add_argument("--no-schemas", action="store_true", help="provguard only: hide tool output schemas")
     run.add_argument("--logdir", default="runs", help="AgentDojo per-case logs (resume source)")
     run.add_argument("--results-dir", default="results")
     sub.add_parser("report", help="write docs/RESULTS.md from results/*.json")
@@ -85,7 +86,7 @@ def main(argv: list[str] | None = None) -> int:
         label=label,
     )
     client = _client(ns.model, ns.mode, ns.cassette, ns.redis_url)
-    pipeline = build_pipeline(client, ns.defense, suite=ns.suite)
+    pipeline = build_pipeline(client, ns.defense, suite=ns.suite, use_schemas=not ns.no_schemas)
     arm = run_arm(
         spec,
         pipeline,

@@ -9,6 +9,7 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Any, Literal
 
+import yaml
 from agentdojo.agent_pipeline.agent_pipeline import AgentPipeline
 from agentdojo.agent_pipeline.base_pipeline_element import BasePipelineElement
 from agentdojo.agent_pipeline.basic_elements import InitQuery, SystemMessage
@@ -46,7 +47,22 @@ GUARD_SYSTEM_MESSAGE = (
 )
 
 
-def tool_specs(functions: Sequence[Function]) -> dict[str, ToolSpec]:
+class ToolSchemas(BaseModel):
+    """Planner-facing output schemas (``policies/schemas/<suite>.yaml``): tool semantics, never data."""
+
+    version: int = 1
+    types: dict[str, str] = {}
+    tools: dict[str, dict[str, str]] = {}
+
+    @classmethod
+    def load(cls, path: Path) -> ToolSchemas:
+        return cls.model_validate(yaml.safe_load(path.read_text()))
+
+    def returns(self, tool: str) -> str:
+        return " ".join(self.tools.get(tool, {}).get("returns", "").split())
+
+
+def tool_specs(functions: Sequence[Function], schemas: ToolSchemas | None = None) -> dict[str, ToolSpec]:
     """AgentDojo ``Function`` -> planner/validator ``ToolSpec`` (names, required args, short description)."""
     specs: dict[str, ToolSpec] = {}
     for f in functions:
@@ -59,7 +75,12 @@ def tool_specs(functions: Sequence[Function]) -> dict[str, ToolSpec]:
             for name, p in props.items()
         )
         desc = " ".join(str(f.description).split())
-        specs[f.name] = ToolSpec(name=f.name, args=args, description=f"{desc} [{params}]" if params else desc)
+        specs[f.name] = ToolSpec(
+            name=f.name,
+            args=args,
+            description=f"{desc} [{params}]" if params else desc,
+            returns=schemas.returns(f.name) if schemas else "",
+        )
     return specs
 
 
@@ -90,6 +111,7 @@ class ProvenanceGuard(BasePipelineElement):
         trust: TrustConfig,
         policy: PolicySet,
         mode: Mode = "strict",
+        schemas: ToolSchemas | None = None,
         planner: Planner | None = None,
         extractor: ExtractorCallable | None = None,
         confirm: ConfirmHandler | None = None,
@@ -98,11 +120,17 @@ class ProvenanceGuard(BasePipelineElement):
         self.trust = trust
         self.policy = policy
         self.mode = mode
-        self.planner = planner or Planner(client)
+        self.schemas = schemas
+        types = {k: " ".join(v.split()) for k, v in schemas.types.items()} if schemas else None
+        self.planner = planner or Planner(client, types=types)
         self.extractor = extractor or LLMExtractor(client)
         self.confirm = confirm or (confirm_strict if mode == "strict" else confirm_permissive)
-        self.name = f"provguard-{mode}-{client.model.id.replace('/', '_')}"
+        variant = (
+            mode if schemas is not None else f"{mode}-noschema"
+        )  # separate AgentDojo log dirs per variant
+        self.name = f"provguard-{variant}-{client.model.id.replace('/', '_')}"
         self.last: GuardTrace | None = None
+        self.history: list[GuardTrace] = []  # one entry per request served by this element
 
     def query(
         self,
@@ -114,7 +142,7 @@ class ProvenanceGuard(BasePipelineElement):
     ) -> tuple[str, FunctionsRuntime, Env, Sequence[ChatMessage], dict[str, Any]]:
         out: list[ChatMessage] = list(messages)
         trace = GuardTrace()
-        specs = tool_specs(list(runtime.functions.values()))
+        specs = tool_specs(list(runtime.functions.values()), self.schemas)
 
         try:
             planned = self.planner.plan(query, specs)
@@ -183,6 +211,7 @@ class ProvenanceGuard(BasePipelineElement):
         trace: GuardTrace,
     ) -> tuple[str, FunctionsRuntime, Env, Sequence[ChatMessage], dict[str, Any]]:
         self.last = trace
+        self.history.append(trace)
         return query, runtime, env, out, {**extra_args, "provguard": trace.model_dump()}
 
 
@@ -211,14 +240,17 @@ def build_guard_pipeline(
     trust_path: Path | None = None,
     policy_path: Path | None = None,
     extractor_client: LLMClient | None = None,
+    use_schemas: bool = True,
 ) -> AgentPipeline:
     trust = TrustConfig.load(trust_path or POLICY_DIR / "trust.yaml")
     policy = PolicySet.load(policy_path or POLICY_DIR / f"{suite}.yaml")
+    schema_path = POLICY_DIR / "schemas" / f"{suite}.yaml"
     guard = ProvenanceGuard(
         client,
         trust=trust,
         policy=policy,
         mode=mode,
+        schemas=ToolSchemas.load(schema_path) if use_schemas and schema_path.exists() else None,
         extractor=LLMExtractor(extractor_client) if extractor_client is not None else None,
     )
     pipeline = AgentPipeline([SystemMessage(GUARD_SYSTEM_MESSAGE), InitQuery(), guard])
@@ -226,4 +258,28 @@ def build_guard_pipeline(
     return pipeline
 
 
-__all__ = ["GuardTrace", "Mode", "ProvenanceGuard", "build_guard_pipeline", "tool_specs"]
+def guard_stats(history: Sequence[GuardTrace]) -> dict[str, Any]:
+    """Aggregate what the guard did over the requests it served in this process (resumed cases are absent)."""
+    results = [t.result for t in history if t.result is not None]
+    statuses: dict[str, int] = {}
+    for t in history:
+        key = t.result.status if t.result is not None else "planner_failed"
+        statuses[key] = statuses.get(key, 0) + 1
+    return {
+        "requests": len(history),
+        "requests_with_confirmation": sum(1 for r in results if r.confirmations > 0),
+        "confirmations": sum(r.confirmations for r in results),
+        "tool_calls_executed": sum(len(r.tool_calls) for r in results),
+        "statuses": statuses,
+    }
+
+
+__all__ = [
+    "GuardTrace",
+    "Mode",
+    "ProvenanceGuard",
+    "ToolSchemas",
+    "build_guard_pipeline",
+    "guard_stats",
+    "tool_specs",
+]

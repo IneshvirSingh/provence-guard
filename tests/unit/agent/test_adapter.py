@@ -92,6 +92,13 @@ def test_benign_task_solved_with_structured_plan(make_client, tmp_path):
     assert guard.last.result.status == "ok" and "1050" in guard.last.result.response
     assert [r.tool for r in guard.last.result.tool_calls] == ["get_most_recent_transactions"]
     assert client.summary.requests == 1  # one planner call, no extractor
+    assert arm.guard == {
+        "requests": 1,
+        "requests_with_confirmation": 0,
+        "confirmations": 0,
+        "tool_calls_executed": 1,
+        "statuses": {"ok": 1},
+    }
 
 
 def test_strict_mode_refuses_payment_from_untrusted_file(make_client, tmp_path):
@@ -162,3 +169,22 @@ def test_planner_failure_and_tool_error_fail_closed(make_client):
     assert "I stopped before finishing" in messages[-1]["content"][0]["content"]
     assert extra["provguard"]["result"]["status"] == "error"
     assert messages[-2]["role"] == "tool" and messages[-2]["error"]
+
+
+def test_output_schemas_reach_the_planner_prompt_for_every_tool(make_client):
+    from provguard.agent.adapter import POLICY_DIR, ToolSchemas
+
+    schemas = ToolSchemas.load(POLICY_DIR / "schemas" / "banking.yaml")
+    assert set(schemas.tools) == {f.name for f in SUITE.tools}  # uniform: every tool, no task-specific entry
+    transport = Scripted(plans=[{"steps": [{"op": "respond", "template": "hi"}]}])
+    pipeline = build_guard_pipeline(make_client(transport), "strict")
+    from agentdojo.functions_runtime import FunctionsRuntime
+
+    pipeline.query("hi", FunctionsRuntime(list(SUITE.tools)), SUITE.load_and_inject_default_environment({}))
+    system = transport.payloads[0]["messages"][0]["content"]
+    assert "returns: list[Transaction]" in system and "## Result types" in system and '"me"' in system
+    off = Scripted(plans=[{"steps": [{"op": "respond", "template": "hi"}]}])
+    build_guard_pipeline(make_client(off), "strict", use_schemas=False).query(
+        "hi", FunctionsRuntime(list(SUITE.tools)), SUITE.load_and_inject_default_environment({})
+    )
+    assert "Result types" not in off.payloads[0]["messages"][0]["content"]

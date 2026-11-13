@@ -128,6 +128,7 @@ class ToolSpec(BaseModel):
     name: str
     args: dict[str, bool] = Field(default_factory=dict, description="arg name -> required")
     description: str = ""
+    returns: str = ""  # output schema shown to the planner (never data); see policies/schemas/
 
 
 class Plan(BaseModel):
