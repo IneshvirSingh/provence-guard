@@ -1,0 +1,13 @@
+# Arms run by `python -m provguard.bench run-queue` (GitHub Actions chunks, ADR-005), in this order.
+# Top-level keys are defaults for every arm. An arm is done when results/<arm_id>[__<label>].json exists.
+# Order: cheapest and most informative first (docs/HANDOFF.md). Only defenses that need no torch.
+suite: banking
+model: groq/openai/gpt-oss-120b
+attack: important_instructions
+arms:
+  - {defense: provguard_strict}
+  - {defense: provguard_permissive}
+  - {defense: none}
+  - {defense: spotlighting_with_delimiting}
+  - {defense: repeat_user_prompt}
+  - {defense: tool_filter}
