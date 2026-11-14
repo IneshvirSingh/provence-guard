@@ -35,6 +35,17 @@ Read, in order: `docs/THREAT_MODEL.md`, `policies/trust.yaml`, `docs/adr/ADR-002
 - D4 Phase order: design doc + core before the Phase 1 harness.
 Reply "go" (optionally with overrides).
 
+## 4. GitHub Actions benchmark chunks (ADR-005) — OPEN
+Read `docs/adr/ADR-005-scheduled-benchmark-chunks.md` and `.github/workflows/bench-chunk.yml` first.
+1. GitHub → repo → **Settings → Secrets and variables → Actions → New repository secret** → name `GROQ_API_KEY`,
+   paste the same Groq key (Codespaces secrets are not visible to Actions; this is a separate store).
+2. Repo → **Settings → Actions → General → Workflow permissions**: either setting works, because the workflow
+   requests `contents: write` itself. Leave "Allow GitHub Actions to create and approve pull requests" **off**.
+3. First manual chunk: repo → **Actions → bench-chunk → Run workflow** (branch `main`, default queue). Do this on
+   a day when the Codespace has not used the gpt-oss-120b quota. It creates the `bench-state` branch.
+4. Tell the agent the run finished (or failed); it pulls results from `bench-state` and writes the ADR addendum.
+5. Decide on the daily schedule (ADR-005 section 7). Reply "enable schedule" or keep triggering by hand.
+
 ## Later (not yet needed)
 - Phase 3: Hugging Face account (free) for the model repo; Colab/Kaggle account.
 - Phase 6/7: Azure for Students with college email (first); Neon, Upstash, Qdrant Cloud, Langfuse Cloud signups —

@@ -1,0 +1,113 @@
+# One quota-sized benchmark chunk per run (ADR-005). Runs the arms in config/bench_queue.yaml in order until
+# the queue is done or the provider's daily quota stops it, then appends the LLM cache, quota counters and any
+# finished results files to the `bench-state` branch. The next run resumes from that state.
+#
+# Manual trigger only. The daily schedule is NOT enabled: it needs the human's approval (ADR-005, section 7).
+# Requires the repository secret GROQ_API_KEY (HUMAN_TODO.md). No pull_request trigger, so forks never see it.
+name: bench-chunk
+
+on:
+  workflow_dispatch:
+    inputs:
+      queue:
+        description: Queue file (arms in run order)
+        default: config/bench_queue.yaml
+        required: true
+  # schedule:                # DO NOT ENABLE without the human's approval (ADR-005 section 7).
+  #   - cron: "17 0 * * *"   # proposed: shortly after the 00:00 UTC quota reset
+
+permissions:
+  contents: write # push to bench-state only; this workflow never writes to main
+
+concurrency:
+  group: bench-chunk # two chunks must never share the quota or race on bench-state
+  cancel-in-progress: false
+
+jobs:
+  chunk:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 150
+    env:
+      STATE: state
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Restore state (bench-state branch as a worktree)
+        run: |
+          if git ls-remote --exit-code --heads origin bench-state >/dev/null; then
+            git fetch --depth 1 origin bench-state:bench-state
+            git worktree add "$STATE" bench-state
+          else
+            git worktree add --orphan -b bench-state "$STATE"
+            printf '%s\n' "# bench-state" "" \
+              "Written by .github/workflows/bench-chunk.yml (ADR-005 on main). Append-only; do not edit by hand." \
+              > "$STATE/README.md"
+          fi
+          mkdir -p "$STATE/cache" "$STATE/results"
+          ls -la "$STATE/cache" "$STATE/results"
+
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+
+      - name: Install (locked)
+        run: uv sync --locked --extra llm --extra bench
+
+      - name: Check configured model IDs against the provider's live /models
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+        run: uv run --no-sync python -m provguard.bench check-models
+
+      - name: Run queue until done or the daily quota stops it
+        id: run
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          QUEUE: ${{ inputs.queue || 'config/bench_queue.yaml' }}
+        run: |
+          set +e
+          uv run --no-sync python -m provguard.bench run-queue --queue "$QUEUE" \
+            --state-dir "$STATE/cache" --results-dir "$STATE/results" --logdir runs-ci
+          code=$?
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          case $code in
+            0) echo "Queue complete." >> "$GITHUB_STEP_SUMMARY" ;;
+            75) echo "Stopped on the daily quota; state saved, the next run resumes." >> "$GITHUB_STEP_SUMMARY" ;;
+            *) echo "Run failed with exit code $code; partial state is still saved." >> "$GITHUB_STEP_SUMMARY" ;;
+          esac
+          exit 0
+
+      - name: Secret scan of the state before it is pushed
+        id: scan
+        if: always()
+        env:
+          GITLEAKS_VERSION: 8.30.1
+          GITLEAKS_SHA256: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+        run: |
+          curl -sSfL -o /tmp/gitleaks.tar.gz \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          echo "${GITLEAKS_SHA256}  /tmp/gitleaks.tar.gz" | sha256sum --check
+          tar -xzf /tmp/gitleaks.tar.gz -C /tmp gitleaks
+          /tmp/gitleaks dir "$STATE" --redact --no-banner
+
+      - name: Save state (append one commit to bench-state)
+        if: always() && steps.scan.outcome == 'success'
+        run: |
+          cd "$STATE"
+          git add -A
+          if git diff --cached --quiet; then echo "no state change"; exit 0; fi
+          git -c user.name="github-actions[bot]" -c user.email="github-actions[bot]@users.noreply.github.com" \
+              commit -q -m "chore(bench-state): chunk ${GITHUB_RUN_ID} (exit ${{ steps.run.outputs.code || 'n/a' }}, main ${GITHUB_SHA::7})"
+          git push origin bench-state
+
+      - name: Upload per-case logs (regenerable from the cache; kept for convenience)
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: runs-${{ github.run_id }}
+          path: runs-ci
+          if-no-files-found: ignore
+          retention-days: 30
+
+      - name: Fail on anything other than "done" or "quota stop"
+        if: always()
+        run: |
+          code="${{ steps.run.outputs.code }}"
+          [ "$code" = "0" ] || [ "$code" = "75" ]
