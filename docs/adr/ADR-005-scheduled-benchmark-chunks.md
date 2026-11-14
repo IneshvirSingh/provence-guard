@@ -1,7 +1,7 @@
 # ADR-005: Resumable benchmark chunks on GitHub Actions, state on a `bench-state` branch
 
-Status: proposed (2026-11-14). The workflow exists with a manual trigger only; **the daily schedule is not
-enabled and needs the human's approval** (section 7). Supersedes ADR-003 decision 6 ("long runs execute in the
+Status: accepted (2026-11-14). The workflow exists with a manual trigger only. The human approved the daily
+schedule at 00:30 UTC **conditional on one successful manual run**; until then it stays commented out (section 7). Supersedes ADR-003 decision 6 ("long runs execute in the
 Codespace"). Verified on 2026-11-14: action versions and commit SHAs via the GitHub API
 (`actions/checkout` v7.0.1, `astral-sh/setup-uv` v10.3.3, `actions/upload-artifact` v7.0.2), gitleaks v8.30.1
 checksum from its release page. The workflow has not run yet; first-run findings go in an addendum.
@@ -39,8 +39,10 @@ checksum from its release page. The workflow has not run yet; first-run findings
    `permissions: contents: write` and nothing else; actions pinned by commit SHA; gitleaks (checksum-pinned
    binary) scans the state directory and **the push is skipped if the scan fails**; `check-models` runs before
    any LLM call; a `concurrency` group prevents two chunks overlapping.
-7. **Schedule (not enabled)**: proposed `cron: "17 0 * * *"`, shortly after the 00:00 UTC reset. Consequences
-   the human should accept before approving: (a) the chunk uses the whole day's gpt-oss-120b quota, so live
+7. **Schedule (approved 2026-11-14, not yet enabled)**: `cron: "30 0 * * *"` (00:30 UTC, after the 00:00 UTC
+   reset), to be uncommented only after one manual run has finished with exit 0 or 75 and pushed `bench-state`.
+   Rule that follows from (a): **on days the schedule runs, the Codespace must not use gpt-oss-120b.**
+   Consequences accepted with the approval: (a) the chunk uses the whole day's gpt-oss-120b quota, so live
    Codespace work on that model the same day will hit 429s (the Codespace's Redis counters do not see Actions
    usage); use `qwen/qwen3.8-27b` in the Codespace or pause the schedule; (b) GitHub disables schedules after 60
    days without repo activity; (c) the schedule must be removed when the queue is complete (a finished queue

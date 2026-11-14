@@ -52,9 +52,8 @@ S5 is kept out of training so there is one evaluation set the model has never se
 - **S1 label noise.** Every submission is an attack attempt, including test messages and gibberish. Plan:
   label by intent (all are 1), drop bodies shorter than 5 words, and report results separately on the subset
   that reached the model (`email.retrieved`) as a sanity check. Do not label failed attacks 0.
-- **S1 dominance and duplication.** Teams resubmitted near-identical emails hundreds of times. After dedup, cap
-  S1 at a fixed number of rows per team and overall so it does not swamp S2–S4; caps are chosen from the
-  measured distribution and written into the build config, not tuned on test metrics.
+- **S1 dominance and duplication.** Teams resubmitted near-identical emails hundreds of times. After dedup S1
+  is capped as fixed in section 4a, so it does not swamp S2–S4.
 - **Group leakage.** Split S1 by `team_id` (all of a team's emails in one split). Split S2 by BIPIA's attack
   train/test files and by context id. Dedup runs across the whole pool before splitting, then a second pass
   removes any validation/test row whose near-duplicate is in train.
@@ -65,11 +64,27 @@ S5 is kept out of training so there is one evaluation set the model has never se
   whole serialised tool result; this is a Phase 3 design decision to record in the detector ADR.
 - **Personal data.** S1 emails are challenge submissions and simulated mailboxes; S2 emails come from a public
   eval set. We do not redistribute any rows: the repo ships the build script, pinned revisions and hashes.
-- **Share-alike (S4).** We publish model weights and a build script, not the data. Whether weights are a
-  derivative work of training text is legally unsettled; the model card will attribute Dolly and state the
-  licence. If the human prefers zero share-alike exposure, replace S4 with synthetic benign instructions and
-  say so here.
+- **Share-alike (S4).** Accepted by the human on 2026-11-14. Conditions: Dolly is downloaded at train time
+  from the pinned revision, raw rows are never committed to this repo or uploaded with the model, and the
+  attribution in section 8 is copied into the Hugging Face model card. We publish model weights and a build
+  script, not the data; whether weights are a derivative work of training text is legally unsettled, and the
+  model card will say so.
 - **Languages.** Mostly English; S3 has German. No claim is made for other languages.
+
+## 4a. Pre-registered sampling for S1 (fixed 2026-11-14, before any data was downloaded or any metric exists)
+Approved by the human on 2026-11-14. These values may not be changed after the first training run; a change
+needs a new dated entry here with the reason, and both results are then reported.
+
+- **Sampling seed**: `20261114` (used for everything below; also the split seed for all sources).
+- **Order of operations**: filter (bodies under 5 words dropped) → dedup (section 6) → leak check → cap → split.
+- **Per-team cap**: at most **200** rows per `team_id`.
+- **Overall cap**: at most **30,000** S1 rows after the per-team cap.
+- **Sampling rule (deterministic, no RNG state)**: rank rows by `sha256("20261114:" + normalised text)` in
+  ascending hex order; keep the first 200 per team, then the first 30,000 overall in the same order. If fewer
+  rows survive than a cap, all are kept and the count is reported.
+- **Split**: by team, 80 / 10 / 10 train / validation / test; a team goes to the split given by
+  `int(sha256("20261114:" + team_id), 16) % 10` (0–7 train, 8 validation, 9 test).
+- S1's scenario benign emails (negatives) are not capped.
 
 ## 5. Leak check against AgentDojo (design; core implemented in `provguard.detector.leakcheck`)
 Goal: after this check, no training, validation or test row contains, is contained in, or closely overlaps any
@@ -119,7 +134,18 @@ AgentDojo string. The check is mechanical, so nobody has to read injection task 
   (Jaccard ≥ 0.8), keeping the earliest row.
 - Attribution for all five sources goes in the Hugging Face model card.
 
-## 7. Open questions for the human
-1. Accept S4's CC BY-SA 3.0 for negatives, or prefer synthetic negatives only?
-2. S1 is 460k raw rows; is a capped subsample (order of 20–40k after dedup) acceptable for a free Colab T4
-   session, with the cap fixed before any test metric is seen?
+## 7. Decisions by the human (2026-11-14)
+1. S4 (Dolly, CC BY-SA 3.0) accepted for negatives, under the conditions in section 4.
+2. S1 cap accepted; values fixed in section 4a.
+
+## 8. Attribution (copy into the model card)
+- **LLMail-Inject** — Microsoft, `microsoft/llmail-inject-challenge` (Hugging Face), MIT licence.
+- **BIPIA** — Microsoft, `github.com/microsoft/BIPIA`, MIT licence; email contexts originate from OpenAI Evals
+  (MIT licence).
+- **deepset/prompt-injections** — deepset (Hugging Face); Apache-2.0 per the dataset card (the hub metadata
+  also lists CC BY 4.0).
+- **databricks-dolly-15k** — Databricks, `databricks/databricks-dolly-15k` (Hugging Face), licensed under
+  CC BY-SA 3.0 (https://creativecommons.org/licenses/by-sa/3.0/). Used unmodified as training negatives; parts
+  of its reference passages come from Wikipedia (CC BY-SA 3.0).
+- **InjecAgent** — UIUC Kang Lab, `github.com/uiuc-kang-lab/InjecAgent`, MIT licence (evaluation only).
+Citations (paper references) are added from each source's own citation file at model-card time, not from memory.

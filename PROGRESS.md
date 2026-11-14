@@ -226,3 +226,18 @@ Failures F13–F18 documented for strict r1/r2 (no fixes; planner frozen). `make
 Left: `make protocol K=3` for `provguard_strict` and `none` (≈100k tokens, one UTC day), then the final table.
 Not run: the Actions workflow (needs the human's Actions secret). Open for the human: which utility column
 governs the option-4 trigger; data card §7 questions; schedule approval.
+
+## Session 9 — 2026-11-14 evening (Claude Fable 5.2)
+
+Human decisions: audited column governs, option-4 trigger met; Dolly accepted; LLMail cap accepted; schedule
+approved for 00:30 UTC after one successful manual run; no Actions run today.
+
+Done: strict r3 started against a durable file cache (`.bench-state/protocol`, counters seeded with the 151,898
+tokens already spent today); it stopped cleanly on the quota (exit 75) after 45,417 live tokens, 18 responses
+cached. No r3 results file yet. `docs/DATA_CARD.md` §4a (cap 200 per team, 30,000 overall, seed 20261114) and
+§8 attribution. ADR-005 accepted, cron comment set to 00:30 UTC (still disabled). ADR-006 drafted (nothing
+built). `docs/HANDOFF.md` finalised for Opus.
+
+Not done: the final protocol table. The run-3 pair needs ≈53k more tokens and the day had ≈2.5k left; it
+resumes after 00:00 UTC with the commands in `docs/HANDOFF.md` §3. ADR-006 was drafted before run 3 finished
+(the human asked for it after run 3); its v1 numbers are marked interim / `[PENDING]`.

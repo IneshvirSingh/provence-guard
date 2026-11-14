@@ -225,3 +225,4 @@ runs/
 mlruns/
 *.onnx
 .hypothesis/
+.bench-state/

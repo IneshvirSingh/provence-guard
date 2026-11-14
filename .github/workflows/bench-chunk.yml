@@ -2,7 +2,8 @@
 # the queue is done or the provider's daily quota stops it, then appends the LLM cache, quota counters and any
 # finished results files to the `bench-state` branch. The next run resumes from that state.
 #
-# Manual trigger only. The daily schedule is NOT enabled: it needs the human's approval (ADR-005, section 7).
+# Manual trigger only for now. The human approved a daily schedule at 00:30 UTC on 2026-11-14 on one condition:
+# one successful manual run first (ADR-005, section 7). Until that run exists the schedule stays commented out.
 # Requires the repository secret GROQ_API_KEY (HUMAN_TODO.md). No pull_request trigger, so forks never see it.
 name: bench-chunk
 
@@ -13,8 +14,8 @@ on:
         description: Queue file (arms in run order)
         default: config/bench_queue.yaml
         required: true
-  # schedule:                # DO NOT ENABLE without the human's approval (ADR-005 section 7).
-  #   - cron: "17 0 * * *"   # proposed: shortly after the 00:00 UTC quota reset
+  # schedule:                # Enable only after one successful manual run (ADR-005 section 7).
+  #   - cron: "30 0 * * *"   # approved time: 00:30 UTC, after the 00:00 UTC quota reset
 
 permissions:
   contents: write # push to bench-state only; this workflow never writes to main

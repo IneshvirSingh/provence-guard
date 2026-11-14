@@ -1,6 +1,6 @@
 # HANDOFF.md — complete brief for the next model (Claude Opus 5.5 from 2026-11-18)
 
-Last updated: 2026-11-14, session 8 (Claude Fable 5.2). Read `CLAUDE.md` first (rules), then this file, then
+Last updated: 2026-11-14 19:55 UTC, session 9 (Claude Fable 5.2). **Final brief from Fable.** Read `CLAUDE.md` first (rules), then this file, then
 `PLAN.md`, `PROGRESS.md`, `HUMAN_TODO.md`. The human (Inesh) reviews at every GATE; stop and wait there.
 
 ## 1. What exists and works
@@ -27,14 +27,25 @@ the same reason, stop and ask the human.
   `make up && make protocol K=<1|2|3> DEFENSE=<none|provguard_strict>`, then `make report`.
 - Report official utility **and** the audited "real completion" column (vacuous tasks 5, 6, 8, 9, 10 excluded
   for every arm; rule in PROTOCOL.md §4; the set is computed by `vacuous_user_tasks` and stored in each file).
-- **Status 2026-11-14**: done `none` r1, r2 and `provguard_strict` r1, r2. **Left: exactly two runs**, on any
-  UTC day with ≥110k tokens free: `make up && make protocol K=3 DEFENSE=provguard_strict && make protocol K=3
-  DEFENSE=none && make report`. Then add r3 strict misses to `docs/FAILURES.md` (section "Benign protocol
-  runs") and report the table. Interim table (2 of 3 runs) is in `docs/RESULTS.md`: none 18/32 official, 11/22
-  audited; strict 14/32 official, 4/22 audited.
-- On the audited column strict is currently below half of undefended (the OD6 trigger); on the official column
-  it is not. The human has not yet said which column governs. Do not draft the option-4 ADR before run 3 is in
-  and the human has answered.
+- **Status 2026-11-14 19:55 UTC**: done `none` r1, r2 and `provguard_strict` r1, r2. Strict r3 is **partly
+  paid for**: it stopped cleanly on the daily quota after 45,417 tokens, and its 18 responses are in the
+  durable file cache `.bench-state/protocol/llm-cache.jsonl` (git-ignored, survives a Codespace stop; Redis does
+  not). **Left: finish strict r3 (a few thousand tokens) and run `none` r3 (≈48k)**, after 00:00 UTC, with
+  exactly these commands (same flags as `make protocol K=3`, but file-backed state instead of Redis):
+  ```
+  uv run python -m provguard.bench run --suite banking --defense provguard_strict \
+    --model groq/openai/gpt-oss-120b --state-dir .bench-state/protocol --seed 2 --label r3 --logdir runs/r3 --force-rerun
+  uv run python -m provguard.bench run --suite banking --defense none \
+    --model groq/openai/gpt-oss-120b --state-dir .bench-state/protocol --seed 2 --label r3 --logdir runs/r3 --force-rerun
+  make report
+  ```
+  Exit code 75 means "quota stop, rerun later". If `.bench-state/` is gone (new Codespace), the same commands
+  still work; strict r3 is then paid again in full (≈50k). The strict r3 results file will show most tokens as
+  `cached_*`: that is the part paid on 2026-11-14.
+- Then add r3 strict misses to `docs/FAILURES.md` (section "Benign protocol runs"), replace the interim numbers
+  in ADR-006 §1, and report the final table to the human. Interim (2 of 3 runs, `docs/RESULTS.md`): none 18/32
+  official, 11/22 audited; strict 14/32 official, 4/22 audited.
+- **Decided by the human 2026-11-14: the audited column governs and the option-4 trigger is met.** See task 2a.
 - After all six files exist: every strict miss gets an F-number in `docs/FAILURES.md` (read
   `runs/r<k>/provguard-strict-*/banking/user_task_*/none/none.json`; never read injection task contents).
 
@@ -57,8 +68,19 @@ the same reason, stop and ask the human.
    Waiting on the human (`HUMAN_TODO.md` §4): Actions secret `GROQ_API_KEY`, first manual run. After the first
    run: fix whatever breaks, write the ADR addendum, pull results with
    `git fetch origin bench-state && git checkout origin/bench-state -- results/ && make report`.
-   **Do not add the `schedule:` trigger until the human approves** (ADR-005 §7). Do not run live gpt-oss-120b
-   work in the Codespace on a day a chunk runs: the two quota counters do not see each other.
+   **Schedule: approved by the human for 00:30 UTC, but only after one successful manual run** (exit 0 or 75 and
+   a pushed `bench-state`). Then uncomment the two `schedule:` lines in the workflow (cron `30 0 * * *`), show
+   the diff, commit. Remove the schedule when the queue is complete.
+   **Hard rule: on any day a chunk runs (every day once the schedule is on), the Codespace must not use
+   `gpt-oss-120b`.** The chunk takes the whole 200k daily quota and the two quota counters do not see each
+   other. Codespace live work on those days uses `qwen/qwen3.8-27b` or waits. So finish the benign protocol
+   (task 1) **before** the first manual chunk, or on a day without one.
+2a. **ADR-006 (draft): planner-v2 = one bounded second planning round over a trusted view.**
+   `docs/adr/ADR-006-planner-v2-trusted-view-replanning.md`. Nothing is built. It contains the pre-registered
+   evaluation plan (§5: development budget of two benign runs, same protocol, held-out Slack run once, decision
+   rule, written predictions). **Do not edit §5 once v2 development starts; do not start before the human
+   accepts the ADR and answers its §7.** v1 (`planner-v1`) stays frozen and its results stay the first reported
+   result. Build order is in ADR-006 §6. v2 is a new code path and new defense names; it does not modify v1.
 3. **Attacked arms** through that workflow, cheapest and most informative first: `provguard_strict`, then
    `provguard_permissive`, then `none` (`important_instructions`, banking). Then baselines
    `spotlighting_with_delimiting`, `repeat_user_prompt`, `tool_filter`. Report targeted ASR and utility under
@@ -67,7 +89,9 @@ the same reason, stop and ask the human.
    The baseline is non-deterministic at temperature 0; ask the human whether attacked arms also need repeats
    before spending ≈3 days of quota per extra baseline run. → GATE 1 and GATE 2 together.
 4. **Phase 3** (own detector; master prompt §6). Prep done: `docs/DATA_CARD.md` (five sources, licences
-   verified live 2026-11-14, exclusions, leak-check design, two open questions for the human in §7) and
+   verified live 2026-11-14, exclusions, leak-check design; human decisions recorded: Dolly CC BY-SA 3.0
+   accepted with attribution in §8 and no raw data committed, LLMail cap and seed pre-registered in §4a and
+   not to be changed after the first training run) and
    `src/provguard/detector/leakcheck.py` with tests (233 AgentDojo reference fragments indexed; reports carry
    hashes only). Next: detector ADR, build script (dedup → leak check → group splits) writing
    `results/detector_data.json` and `results/leak_check.json`, Colab notebook, MLflow, ONNX, Hugging Face Hub,
@@ -76,9 +100,7 @@ the same reason, stop and ask the human.
 5. Later phases unchanged in `PLAN.md`.
 
 ## 6. Open decisions
-- OD6 / option 4 (deferred by the human): a bounded second planning round that sees only trusted fields, to
-  address tasks that need judgement on data (F6). Only to be proposed as an ADR draft if the protocol shows
-  strict utility below half of undefended; not to be built without a "go".
+- OD6 / option 4: resolved into ADR-006 (draft). Its §7 has three points for the human.
 - OD8: repeats for attacked arms (see task 3).
 - OD9: where `today` should come from in deployment (currently environment calendar, else process clock;
   ADR-004 amendment 3). Fine for the benchmark; revisit in Phase 6.
