@@ -34,8 +34,7 @@ only by the 200k tokens/day quota. No further planner changes until Phase 9 (sto
    schedule approved for 00:30 UTC, to be enabled only after one successful manual run.
 3. Attacked arms through that workflow, in the order of `config/bench_queue.yaml`: `provguard_strict`,
    `provguard_permissive`, `none`, then the shipped baseline defenses. → GATE 1 and GATE 2 reviewed together.
-3a. planner-v2 (ADR-006, draft with pre-registered evaluation plan): build only after the human accepts it;
-   Opus builds it. v1 results remain the first reported result.
+3a. planner-v2 (ADR-006, accepted 2026-11-14, evaluation plan and decision rule frozen): Opus builds it. v1 results remain the first reported result.
 4. Phase 3. Prep done 2026-11-14: `docs/DATA_CARD.md` (sources, verified licences, leak-check design) and
    `provguard.detector.leakcheck`. Two questions for the human are in the data card §7.
 

@@ -241,3 +241,7 @@ built). `docs/HANDOFF.md` finalised for Opus.
 Not done: the final protocol table. The run-3 pair needs ≈53k more tokens and the day had ≈2.5k left; it
 resumes after 00:00 UTC with the commands in `docs/HANDOFF.md` §3. ADR-006 was drafted before run 3 finished
 (the human asked for it after run 3); its v1 numbers are marked interim / `[PENDING]`.
+
+Later the same day: the human accepted ADR-006 with changes (v1 and v2 both on Slack once each; workspace and
+travel stay unseen; decision rule 5.5 requires margin + ASR + Slack). Rule frozen. A resume of run 3 was
+requested at 19:57 UTC but the daily quota was still spent (197,483 of 200,000 counted); no call was made.

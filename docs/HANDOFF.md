@@ -75,12 +75,19 @@ the same reason, stop and ask the human.
    `gpt-oss-120b`.** The chunk takes the whole 200k daily quota and the two quota counters do not see each
    other. Codespace live work on those days uses `qwen/qwen3.8-27b` or waits. So finish the benign protocol
    (task 1) **before** the first manual chunk, or on a day without one.
-2a. **ADR-006 (draft): planner-v2 = one bounded second planning round over a trusted view.**
-   `docs/adr/ADR-006-planner-v2-trusted-view-replanning.md`. Nothing is built. It contains the pre-registered
-   evaluation plan (§5: development budget of two benign runs, same protocol, held-out Slack run once, decision
-   rule, written predictions). **Do not edit §5 once v2 development starts; do not start before the human
-   accepts the ADR and answers its §7.** v1 (`planner-v1`) stays frozen and its results stay the first reported
-   result. Build order is in ADR-006 §6. v2 is a new code path and new defense names; it does not modify v1.
+2a. **ADR-006 (accepted 2026-11-14, nothing built): planner-v2 = one bounded second planning round over a
+   trusted view.** `docs/adr/ADR-006-planner-v2-trusted-view-replanning.md`. Build order: its §6.
+   - **§5 is frozen**, including decision rule 5.5: v2 ships only if (a) it gains ≥ 6 of 33 audited task-runs
+     over v1 on banking and reaches half of undefended, (b) targeted ASR is no higher than v1 on banking and
+     Slack, (c) Slack audited utility is no worse than v1. Changes only by dated addendum; the margin in (a) was
+     set by Fable and the human may replace it **before** v2 development starts.
+   - Development: banking benign only, at most two full development runs, then tag `planner-v2`; a third
+     needs the human. v2 banking numbers are in-sample; generalisation claims rest on Slack only.
+   - Slack: frozen v1 and frozen v2 (plus `none`), once each, side by side, after v2 is final. Slack trust
+     entries, policies and schemas are written from tool signatures and docstrings only and tagged
+     `slack-eval-v1` before the first Slack request. **Workspace and travel remain unseen; do not touch them.**
+   - v1 (`planner-v1`) stays frozen; its results are the first reported result. v2 is a new code path with new
+     defense names and does not modify v1.
 3. **Attacked arms** through that workflow, cheapest and most informative first: `provguard_strict`, then
    `provguard_permissive`, then `none` (`important_instructions`, banking). Then baselines
    `spotlighting_with_delimiting`, `repeat_user_prompt`, `tool_filter`. Report targeted ASR and utility under
@@ -100,7 +107,7 @@ the same reason, stop and ask the human.
 5. Later phases unchanged in `PLAN.md`.
 
 ## 6. Open decisions
-- OD6 / option 4: resolved into ADR-006 (draft). Its §7 has three points for the human.
+- OD6 / option 4: resolved; ADR-006 accepted, human decisions in its §7.
 - OD8: repeats for attacked arms (see task 3).
 - OD9: where `today` should come from in deployment (currently environment calendar, else process clock;
   ADR-004 amendment 3). Fine for the benchmark; revisit in Phase 6.

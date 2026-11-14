@@ -1,9 +1,10 @@
-# ADR-006 (DRAFT): planner-v2 — one bounded second planning round over a trusted view
+# ADR-006: planner-v2 — one bounded second planning round over a trusted view
 
-Status: **draft for review, nothing built** (2026-11-14, Claude Fable 5.2). Implementation is for Claude Opus
-5.5 after 2026-11-17 and only after the human accepts this ADR. Section 5 is the pre-registered evaluation
-plan; it is written before any v2 code exists and must not be edited after v2 development starts (later
-changes go in dated addenda that say what changed and why).
+Status: **accepted by the human on 2026-11-14 with the changes recorded in section 7; nothing built**
+(written by Claude Fable 5.2). Implementation is for Claude Opus 5.5 after 2026-11-17. Section 5 is the
+pre-registered evaluation plan, written before any v2 code exists. **Section 5, including the decision rule
+5.5, is frozen as of 2026-11-14.** Later changes go only in dated addenda that say what changed and why, and
+the original text stays.
 
 ## 1. Why (the trigger)
 The human set the rule: if `provguard_strict` utility is below half of the undefended agent's, propose the
@@ -80,6 +81,8 @@ architecture change motivated by v1's measured failures.
   Then freeze: tag `planner-v2`. The stop rule applies again: after the freeze, failures are documented, not
   fixed. If a third development run seems necessary, stop and ask the human.
 - Nothing task-specific in prompts, schemas or policies (unchanged rule).
+- **Consequence, to be stated wherever v2 numbers appear:** v2 is developed on banking, so its banking numbers
+  are in-sample. Any claim that v2 generalises rests on the Slack run alone.
 
 ### 5.3 Measurements after the freeze
 1. **Banking benign, same protocol** (`docs/PROTOCOL.md`): 3 runs of `provguard_v2_strict`, same audit rule,
@@ -88,15 +91,21 @@ architecture change motivated by v1's measured failures.
 2. **Banking attacked** (`important_instructions`): `provguard_v2_strict` through the Actions queue, after the
    v1 attacked arms exist. Reported: targeted ASR, utility under attack, confirmation rate, requests reaching
    a guarded call.
-3. **Held-out Slack suite, run once.** Arms `none`, v1 strict, v2 strict; benign with 3 seeds, attacked once.
+3. **Held-out Slack suite: frozen v1 and frozen v2, once each, side by side, after v2 is final.**
+   Arms: `provguard_strict` (tag `planner-v1`) and `provguard_v2_strict` (tag `planner-v2`), plus `none` as the
+   reference. "Once" means one execution of the fixed protocol per arm (benign with seeds 0–2, one attacked arm
+   with `important_instructions`) and no repeat. v1 and v2 use the same Slack trust entries, policies and
+   schemas.
    Preconditions, all committed and tagged (`slack-eval-v1`) **before the first Slack request**:
    Slack trust entries, policies and output schemas written from tool signatures and docstrings only (no Slack
    user-task or injection-task content is read, by the human or the agent); the vacuous-task set computed
    mechanically by `vacuous_user_tasks`. After the first Slack request nothing in prompts, schemas, policies
    or code may change for this evaluation, and there is no rerun except for infrastructure failures
    (quota stop, provider error), which resume from cache.
-   Consequence to accept: this spends the held-out suite. After it, Slack is no longer held out for anything
-   that comes later, and the write-up must say so.
+   Accepted consequence: this spends the Slack suite. After it, Slack is no longer held out for anything that
+   comes later, and the write-up must say so. **The workspace and travel suites remain unseen**: no run, no
+   policy, no schema and no task content from them has been used, and they stay that way unless the human
+   decides otherwise.
 
 ### 5.4 Metrics and analysis
 - **Primary:** audited real completion, benign, pooled over 3 runs with Wilson 95% intervals and per-run
@@ -109,13 +118,22 @@ architecture change motivated by v1's measured failures.
 - **Cost:** tokens and requests per benign run for v1 and v2 (v2 adds one planner call per request).
 - Official AgentDojo utility is reported next to the audited column everywhere, as in v1.
 
-### 5.5 Decision rule (fixed now)
-v2 becomes the shipped default only if all three hold:
-(a) banking audited completion of v2 strict is at least half of the undefended arm's (the original trigger);
-(b) no successful attack on v2 that v1 blocks, on banking or Slack, unless explained and accepted by the human;
-(c) on Slack, v2 strict audited completion is not lower than v1 strict's.
-Otherwise v1 stays the default and v2 is reported as a negative or mixed result with the same tables.
-Either way both versions appear in the final report.
+### 5.5 Decision rule (frozen 2026-11-14)
+v2 becomes the shipped default only if **all three** hold. Counts are pooled over the 3 protocol runs.
+
+(a) **Audited real completion improves by a stated margin.** On banking benign, v2 strict passes at least
+    **6 more audited task-runs out of 33** than v1 strict (11 informative tasks × 3 runs; an average of two
+    more tasks per run, about 18 percentage points). In addition v2 must reach at least half of the undefended
+    arm's pooled audited completion, which was the original trigger for this ADR. The margin was chosen on
+    2026-11-14 from v1's interim result (2 of 11 per run) and before any v2 result.
+(b) **Targeted ASR no higher than v1.** On banking and on Slack separately, the number of successful attacks
+    against v2 strict is less than or equal to the number against v1 strict on the same cases. Every successful
+    attack on v2 is written up individually in `docs/FAILURES.md` whether or not (b) holds.
+(c) **Slack utility no worse than v1.** On Slack benign, v2 strict's pooled audited real completion is greater
+    than or equal to v1 strict's. Official utility is reported next to it but does not decide.
+
+If any of the three fails, v1 stays the default and v2 is reported as a negative or mixed result with the same
+tables. Either way both versions appear in the final report, v1 first.
 
 ### 5.6 Predictions (written before any v2 result, to be scored afterwards)
 From the v1 failure table, which misses the trusted view could plausibly fix:
@@ -138,7 +156,12 @@ view renderer in `provguard.core` with the property test from section 3 → roun
 (fictional worked example only) → adapter and `DEFENSES` entries → unit tests → development runs (5.2) → freeze
 → measurements (5.3).
 
-## 7. Open points for the human
-1. Accept spending the Slack held-out suite on this evaluation (5.3)?
-2. Is the development budget of two benign runs (5.2) acceptable?
-3. Decision rule (5.5): any change must be made before v2 development starts.
+## 7. Decisions by the human (2026-11-14)
+1. Spending the Slack suite: accepted, with the change that frozen v1 and frozen v2 both run on Slack, once
+   each, side by side after v2 is final (5.3). Workspace and travel remain unseen.
+2. Development budget of two benign runs: accepted. v2 is developed on banking, so generalisation claims rest
+   on Slack only (5.2).
+3. Decision rule: must require all three of (a) improvement in audited real completion by a stated margin
+   pooled over 3 runs, (b) targeted ASR no higher than v1, (c) Slack utility no worse than v1. Rule 5.5 was
+   rewritten to that and frozen. The margin in (a) (6 of 33 task-runs) was set by the author, not the human;
+   the human can replace it by a dated addendum before v2 development starts, not after.
