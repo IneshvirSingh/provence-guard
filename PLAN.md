@@ -28,14 +28,16 @@ utility. Smoke subset recorded. Benign protocol (3 runs × `none`, `provguard_st
 only by the 200k tokens/day quota. No further planner changes until Phase 9 (stop rule, 2026-11-13).
 
 ## Next steps, in order (details: `docs/HANDOFF.md` §5)
-1. Finish the benign protocol runs; report official and audited utility as measured.
-2. ADR-005, then a GitHub Actions workflow that runs one quota-sized chunk per day, resumable, state persisted
-   (`workflow_dispatch` only until the human approves the schedule).
-3. Attacked arms through that workflow: `provguard_strict`, `provguard_permissive`, `none`, then the shipped
-   baseline defenses. → GATE 1 and GATE 2 reviewed together.
-4. Phase 3.
+1. Finish the benign protocol runs (status: `docs/HANDOFF.md` §3); report official and audited utility as measured.
+2. ~~ADR-005 + Actions workflow~~ written 2026-11-14 (`.github/workflows/bench-chunk.yml`, manual trigger only,
+   state on branch `bench-state`). Waiting on the human: repo secret + first manual run (`HUMAN_TODO.md` §4);
+   the schedule stays off until approved.
+3. Attacked arms through that workflow, in the order of `config/bench_queue.yaml`: `provguard_strict`,
+   `provguard_permissive`, `none`, then the shipped baseline defenses. → GATE 1 and GATE 2 reviewed together.
+4. Phase 3. Prep done 2026-11-14: `docs/DATA_CARD.md` (sources, verified licences, leak-check design) and
+   `provguard.detector.leakcheck`. Two questions for the human are in the data card §7.
 
-## Phase 3: Own detector (data card, dedup + leak check, Colab training, MLflow, ONNX, HF Hub, AgentDojo arm) → GATE 3
+## Phase 3: Own detector (data card **drafted**, dedup + leak check **core built**, Colab training, MLflow, ONNX, HF Hub, AgentDojo arm) → GATE 3
 ## Phase 4: Adaptive attacker (local only), McNemar, budget curves → GATE 4
 ## Phase 5: RAG + custom docs suite (or documented cut) → GATE 5
 ## Phase 6: Production service (FastAPI, auth, audit log, abuse controls, demo UI, load test) → GATE 6

@@ -1,6 +1,6 @@
 # HANDOFF.md — complete brief for the next model (Claude Opus 5.5 from 2026-11-18)
 
-Last updated: 2026-11-13, session 7 (Claude Fable 5.2). Read `CLAUDE.md` first (rules), then this file, then
+Last updated: 2026-11-14, session 8 (Claude Fable 5.2). Read `CLAUDE.md` first (rules), then this file, then
 `PLAN.md`, `PROGRESS.md`, `HUMAN_TODO.md`. The human (Inesh) reviews at every GATE; stop and wait there.
 
 ## 1. What exists and works
@@ -27,8 +27,14 @@ the same reason, stop and ask the human.
   `make up && make protocol K=<1|2|3> DEFENSE=<none|provguard_strict>`, then `make report`.
 - Report official utility **and** the audited "real completion" column (vacuous tasks 5, 6, 8, 9, 10 excluded
   for every arm; rule in PROTOCOL.md §4; the set is computed by `vacuous_user_tasks` and stored in each file).
-- Status of the protocol runs: see `PROGRESS.md` (latest session) and `ls results/*__r*.json`. Any run missing
-  there is still to be executed with the command above; nothing else about it may change.
+- **Status 2026-11-14**: done `none` r1, r2 and `provguard_strict` r1, r2. **Left: exactly two runs**, on any
+  UTC day with ≥110k tokens free: `make up && make protocol K=3 DEFENSE=provguard_strict && make protocol K=3
+  DEFENSE=none && make report`. Then add r3 strict misses to `docs/FAILURES.md` (section "Benign protocol
+  runs") and report the table. Interim table (2 of 3 runs) is in `docs/RESULTS.md`: none 18/32 official, 11/22
+  audited; strict 14/32 official, 4/22 audited.
+- On the audited column strict is currently below half of undefended (the OD6 trigger); on the official column
+  it is not. The human has not yet said which column governs. Do not draft the option-4 ADR before run 3 is in
+  and the human has answered.
 - After all six files exist: every strict miss gets an F-number in `docs/FAILURES.md` (read
   `runs/r<k>/provguard-strict-*/banking/user_task_*/none/none.json`; never read injection task contents).
 
@@ -45,17 +51,14 @@ the same reason, stop and ask the human.
 ## 5. Exact next tasks, in order
 1. **Finish the benign protocol** (section 3) if any `r<k>` file is missing. Report the table from
    `docs/RESULTS.md` to the human as is, good or bad. → this closes the benign part of GATE 1/2.
-2. **ADR-005 + scheduled GitHub Actions workflow for the attacked arms** (human request; not started):
-   - ADR first. Decide and justify how state persists between daily runs: a `results` branch (auditable,
-     survives cache eviction, but commits AgentDojo logs that contain injection strings) versus `actions/cache`
-     (simple, but evicted after 7 days idle and capped at 10 GB). Things the ADR must cover: Redis as a service
-     container vs a file-backed cache (a JSON/SQLite `CacheStore` restored from the persisted state is enough;
-     the quota guard can use `MemoryStore` per job because each job is one day's chunk); how the job stops
-     cleanly on `QuotaExhausted` and still uploads partial state; secrets via repository secret `GROQ_API_KEY`
-     (never echoed; gitleaks in the workflow); `make check-models` as the first step; concurrency group so two
-     chunks never overlap; one chunk = one arm resumed, sized under 200k tokens.
-   - Workflow file with `workflow_dispatch` only. **Do not add the `schedule:` trigger until the human
-     approves.** The repo is public, so Actions minutes are free.
+2. **ADR-005 + GitHub Actions workflow: written 2026-11-14, never run.** `docs/adr/ADR-005-*.md`,
+   `.github/workflows/bench-chunk.yml` (`workflow_dispatch` only), `config/bench_queue.yaml`,
+   `python -m provguard.bench run-queue`, file-backed state (`provguard.llm.filestore`) on branch `bench-state`.
+   Waiting on the human (`HUMAN_TODO.md` §4): Actions secret `GROQ_API_KEY`, first manual run. After the first
+   run: fix whatever breaks, write the ADR addendum, pull results with
+   `git fetch origin bench-state && git checkout origin/bench-state -- results/ && make report`.
+   **Do not add the `schedule:` trigger until the human approves** (ADR-005 §7). Do not run live gpt-oss-120b
+   work in the Codespace on a day a chunk runs: the two quota counters do not see each other.
 3. **Attacked arms** through that workflow, cheapest and most informative first: `provguard_strict`, then
    `provguard_permissive`, then `none` (`important_instructions`, banking). Then baselines
    `spotlighting_with_delimiting`, `repeat_user_prompt`, `tool_filter`. Report targeted ASR and utility under
@@ -63,9 +66,13 @@ the same reason, stop and ask the human.
    guard that rarely acts is weak evidence: always report it next to "requests reaching a guarded call".
    The baseline is non-deterministic at temperature 0; ask the human whether attacked arms also need repeats
    before spending ≈3 days of quota per extra baseline run. → GATE 1 and GATE 2 together.
-4. **Phase 3** (own detector; master prompt §6): data card, dedup and leak check, Colab training, MLflow, ONNX,
-   Hugging Face Hub, AgentDojo arm. The Prompt Guard models in `config/providers.yaml` (`kind: classifier`)
-   are the off-the-shelf baseline. Never train on AgentDojo strings. torch is never installed in the Codespace.
+4. **Phase 3** (own detector; master prompt §6). Prep done: `docs/DATA_CARD.md` (five sources, licences
+   verified live 2026-11-14, exclusions, leak-check design, two open questions for the human in §7) and
+   `src/provguard/detector/leakcheck.py` with tests (233 AgentDojo reference fragments indexed; reports carry
+   hashes only). Next: detector ADR, build script (dedup → leak check → group splits) writing
+   `results/detector_data.json` and `results/leak_check.json`, Colab notebook, MLflow, ONNX, Hugging Face Hub,
+   AgentDojo arm. The Prompt Guard models in `config/providers.yaml` (`kind: classifier`) are the
+   off-the-shelf baseline. Never train on AgentDojo strings. torch is never installed in the Codespace.
 5. Later phases unchanged in `PLAN.md`.
 
 ## 6. Open decisions

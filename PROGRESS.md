@@ -206,3 +206,23 @@ whatever `results/*__r*.json` contains; the aggregate table is generated into `d
 Blocked: `QuotaExhausted` for gpt-oss-120b at 19:05 UTC (our guard's UTC-day window; ≈200k tokens used today).
 Remaining protocol runs resume after 00:00 UTC with `make protocol K=.. DEFENSE=..`.
 
+
+## Session 8 — 2026-11-14 (Claude Fable 5.2)
+
+**Protocol 4 of 6 runs done; Actions workflow + ADR-005 written (not run); Phase 3 data prep.**
+
+The Codespace was stopped overnight, so the scheduled resume never fired and Redis (cache, counters) was empty.
+
+Measured today (files `results/*__r{1,2}.json`; table in `docs/RESULTS.md`): strict r1 7/16 official, 2/11
+audited (50,083 live tokens); strict r2 7/16, 2/11 (53,498); none r2 11/16, 7/11 (48,317). none r1 (7/16, 4/11)
+is from 2026-11-13. Day total 151,898 live tokens; a third strict run (≈50k) did not safely fit in the
+remaining ≈48k, so the loop stopped rather than lose a partial run to a Codespace stop.
+
+Built: `provguard.llm.filestore` (file-backed cache and quota windows), `run-queue` command and exit code 75 on
+quota stop, `config/bench_queue.yaml`, `.github/workflows/bench-chunk.yml` (manual trigger only; schedule
+commented out), ADR-005, `HUMAN_TODO.md` §4; `docs/DATA_CARD.md`; `provguard.detector.leakcheck` + tests.
+Failures F13–F18 documented for strict r1/r2 (no fixes; planner frozen). `make check` green, 184 tests.
+
+Left: `make protocol K=3` for `provguard_strict` and `none` (≈100k tokens, one UTC day), then the final table.
+Not run: the Actions workflow (needs the human's Actions secret). Open for the human: which utility column
+governs the option-4 trigger; data card §7 questions; schedule approval.
